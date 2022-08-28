@@ -171,14 +171,6 @@ def wbtc_whale():
 def aura_whale():
   return accounts.at(AURA_WHALE, force=True)
 
-@pytest.fixture
-def badger(processor):
-  return interface.ERC20(processor.BADGER())
-
-@pytest.fixture
-def cvx(processor):
-  return interface.ERC20(processor.CVX())
-
 ## Forces reset before each test
 @pytest.fixture(autouse=True)
 def isolation(fn_isolation):
