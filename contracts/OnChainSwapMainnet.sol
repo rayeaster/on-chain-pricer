@@ -75,6 +75,8 @@ contract OnChainSwapMainnet {
     /// @return output amount after swap execution
     function doOptimalSwapWithQuote(address tokenIn, address tokenOut, uint256 amountIn, Quote memory optimalQuote) public returns(uint256){		
         SwapType dex = optimalQuote.name;
+
+        // TODO: Change to calldata
         uint256 _minOut = optimalQuote.amountOut * (SWAP_SLIPPAGE_MAX - SWAP_SLIPPAGE_TOLERANCE) / SWAP_SLIPPAGE_MAX;
 		
         if (dex == SwapType.CURVE){
