@@ -8,7 +8,8 @@ enum SwapType {
    UNIV3, //3
    UNIV3WITHWETH, //4 
    BALANCER, //5
-   BALANCERWITHWETH //6 
+   BALANCERWITHWETH, //6
+   PRICEFEED  //7 	
 }
 
 // Onchain Pricing Interface
@@ -34,6 +35,11 @@ contract PricerWrapper {
 	
    function isPairSupported(address tokenIn, address tokenOut, uint256 amountIn) external view returns (bool) {
       return OnChainPricing(pricer).isPairSupported(tokenIn, tokenOut, amountIn);
+   }
+   
+   /// @dev mainly for gas profiling test
+   function findOptimalSwapNonView(address tokenIn, address tokenOut, uint256 amountIn) external returns (Quote memory) {
+      return OnChainPricing(pricer).findOptimalSwap(tokenIn, tokenOut, amountIn);
    }
 
    function findOptimalSwap(address tokenIn, address tokenOut, uint256 amountIn) external view returns (uint256, Quote memory) {

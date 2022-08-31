@@ -30,7 +30,7 @@ def test_pricing_equivalency_uniswap_v2(oneE18, weth, pricerwrapper, pricer_lega
   quote_legacy = tx2.return_value[1]
 
   assert quote >= quote_legacy # Optimized quote must be the same or better
-  assert tx[0] > 0 and tx[0] < tx2.gas_used  
+  assert tx[0] > 0 and abs(tx[0] - tx2.gas_used) < 8000 ## There is some extra overhead using feed oracle in pricer for simple case with Uniswap V2
 
 def test_pricing_equivalency_uniswap_v2_sushi(oneE18, weth, pricerwrapper, pricer_legacy):
   pricer = pricerwrapper
@@ -38,16 +38,16 @@ def test_pricing_equivalency_uniswap_v2_sushi(oneE18, weth, pricerwrapper, price
   ## 1e18
   sell_count = 5000
   sell_amount = sell_count * oneE18 ## 1e18
-
+  
   tx = pricer.findOptimalSwap(token, weth.address, sell_amount)
-  assert (tx[1][0] == 1 or tx[1][0] == 2) ## UNIV2 or SUSHI
+  assert (tx[1][0] == 7) ## PRICEFEED
   quote = tx[1][1]
 
   tx2 = pricer_legacy.findOptimalSwap(token, weth.address, sell_amount)
   assert (tx2.return_value[0] == 1 or tx2.return_value[0] == 2) ## UNIV2 or SUSHI
   quote_legacy = tx2.return_value[1]
 
-  assert quote >= quote_legacy # Optimized quote must be the same or better
+  assert (abs(quote - quote_legacy) / quote) < 0.015 # Note the price feed in new version might cause some nuance there
   assert tx[0] > 0 and tx[0] < tx2.gas_used
 
 def test_pricing_equivalency_balancer_v2(oneE18, weth, aura, pricerwrapper, pricer_legacy):
@@ -127,18 +127,18 @@ def test_pricing_equivalency_almost_everything(oneE18, wbtc, weth, pricerwrapper
   token = weth # some swap (WETH-WBTC) almost in every DEX, the most gas-consuming scenario
   ## 1e18
   sell_count = 10
-  sell_amount = sell_count * oneE18 ## 1e18
+  sell_amount = sell_count * oneE18 ## 1e18  
   
   tx = pricer.findOptimalSwap(token, wbtc.address, sell_amount)
-  assert (tx[1][0] <= 3 or tx[1][0] == 5) ## CURVE or UNIV2 or SUSHI or UNIV3 or BALANCER  
+  assert (tx[1][0] == 7) ## PRICEFEED
   quote = tx[1][1]
 
   tx2 = pricer_legacy.findOptimalSwap(token, wbtc.address, sell_amount)
   assert (tx2.return_value[0] <= 3 or tx2.return_value[0] == 5) ## CURVE or UNIV2 or SUSHI or UNIV3 or BALANCER  
   quote_legacy = tx2.return_value[1]
 
-  assert tx2.return_value[0] == tx[1][0]
-  assert quote >= quote_legacy # Optimized quote must be the same or better, note the fixed pair in new version of univ3 pricer might cause some nuance there
+  assert tx2.return_value[0] < tx[1][0]
+  assert (abs(quote - quote_legacy) / quote) < 0.015 # note the fixed pair or price feed in new version pricer might cause some nuance there
   assert tx[0] > 0 and tx[0] < tx2.gas_used
 
 
