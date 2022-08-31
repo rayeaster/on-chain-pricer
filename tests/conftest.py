@@ -65,7 +65,9 @@ def pricerwrapper():
 def pricer():
   univ3simulator = UniV3SwapSimulator.deploy({"from": accounts[0]})
   balancerV2Simulator = BalancerSwapSimulator.deploy({"from": accounts[0]})
-  return OnChainPricingMainnet.deploy(univ3simulator.address, balancerV2Simulator.address, {"from": accounts[0]})
+  c = OnChainPricingMainnetLenient.deploy(univ3simulator.address, balancerV2Simulator.address, {"from": accounts[0]})
+  c.setSlippage(0, {"from": accounts.at(c.TECH_OPS(), force=True)})
+  return c
 
 @pytest.fixture
 def pricer_legacy():
