@@ -26,7 +26,8 @@ enum SwapType {
     UNIV3, //3
     UNIV3WITHWETH, //4 
     BALANCER, //5
-    BALANCERWITHWETH //6 
+    BALANCERWITHWETH, //6
+    PRICEFEED  //7 	
 }
 
 /// @title OnChainPricing

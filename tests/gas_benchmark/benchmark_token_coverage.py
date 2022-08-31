@@ -6,7 +6,7 @@ import pytest
     Benchmark test for token coverage in findOptimalSwap with focus in DeFi category
     Selected tokens from https://defillama.com/chain/Ethereum
     This file is ok to be exclcuded in test suite due to its underluying functionality should be covered by other tests
-    Rename the file to test_benchmark_token_coverage.py to make this part of the testing suite if required
+    Rename the file to test_benchmark_token_coverage.py to make this part of the testing suite if required and optionally run with `--gas`
 """
 
 TOP_DECIMAL18_TOKENS = [
@@ -44,17 +44,17 @@ TOP_DECIMAL18_TOKENS = [
   ("0x0cec1a9154ff802e7934fc916ed7ca50bde6844e", 50000),    # POOL  
   ("0x43dfc4159d86f3a37a5a4b3d4580b888ad7d4ddd", 50000),    # DODO  
   ("0xe28b3b32b6c345a34ff64674606124dd5aceca30", 10000),    # INJ
-  ("0x0f2d719407fdbeff09d87557abb7232601fd9f29", 10000),    # SYN  
+  ("0x0f2d719407fdbeff09d87557abb7232601fd9f29", 10000),    # SYN 
 ]
 
 @pytest.mark.parametrize("token,count", TOP_DECIMAL18_TOKENS)
-def test_token_decimal18(oneE18, weth, token, count, pricerwrapper):
-  pricer = pricerwrapper   
+def test_token_decimal18(oneE18, weth, token, count, pricerwrapper, pricer_V_0_3_deployed):
+  pricer = pricerwrapper ## pricer_V_0_3_deployed
   sell_token = token
   ## 1e18
   sell_count = count
   sell_amount = sell_count * oneE18 ## 1e18
     
-  quote = pricer.findOptimalSwap(sell_token, weth.address, sell_amount)
-  assert quote[1][1] > 0  
+  quote = pricer.findOptimalSwapNonView(sell_token, weth.address, sell_amount)
+  assert quote.return_value[1] > 0  
  
