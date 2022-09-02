@@ -36,7 +36,7 @@ def test_btc_feed(pricer, wbtc, balethbpt, oneE18):
   pBalBptBTC = pricer.getPriceInBTC(balethbpt.address)
   assert pBalBptBTC == 0  
 
-def test_fetch_usd(pricer, weth, wbtc, badger, ohm): 
+def test_fetch_usd(pricer, weth, wbtc, badger, ohm, aura): 
   pWETH = pricer.fetchUSDFeed(weth.address)  
   pETH = pricer.getEthUsdPrice()
   assert pWETH == pETH 
@@ -51,6 +51,9 @@ def test_fetch_usd(pricer, weth, wbtc, badger, ohm):
   
   pOHMv2 = pricer.fetchUSDFeed(ohm.address) 
   assert pOHMv2 > 5 * 100000000  
+  
+  pAura = pricer.fetchUSDFeed(aura.address) 
+  assert pAura == 0
 
 def test_staleness(pricer, wbtc, badger, oneE18):  
   pETH = pricer.getEthUsdPrice()
@@ -85,6 +88,25 @@ def test_staleness(pricer, wbtc, badger, oneE18):
        pricer.getPriceInUSD(badger.address)
   with brownie.reverts("!stale"):
        pricer.getPriceInBTC(wbtc.address)
+       
+def test_feed_quote(pricer, weth, badger, ohm, wbtc, usdc, aura, oneE18): 
+  pBadgerETH = pricer.tryQuoteWithFeed(badger.address, weth.address, 100 * oneE18)  
+  assert pBadgerETH >= 100 * 0.001 * oneE18
+  
+  pETHBadger = pricer.tryQuoteWithFeed(weth.address, badger.address, 1 * oneE18)  
+  assert pETHBadger >= 1 * 300 * oneE18
+  
+  pWBTCUSDC = pricer.tryQuoteWithFeed(wbtc.address, usdc.address, 1 * 100000000)  
+  assert pWBTCUSDC >= 1 * 10000 * 1000000 
+  
+  pOhmETH = pricer.tryQuoteWithFeed(ohm.address, weth.address, 100 * 1000000000)  
+  assert pOhmETH >= 100 * 0.001 * oneE18
+  
+  pAuraETH = pricer.tryQuoteWithFeed(aura.address, weth.address, 100 * oneE18)  
+  assert pAuraETH == 0
+  
+  pETHAura = pricer.tryQuoteWithFeed(weth.address, aura.address, 100 * oneE18)  
+  assert pETHAura == 0
   
   
 

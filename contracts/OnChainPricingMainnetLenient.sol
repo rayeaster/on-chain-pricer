@@ -98,6 +98,7 @@ contract OnChainPricingMainnetLenient is OnChainPricingMainnet {
     // === ORACLE VIEW FUNCTIONS === //
 	
     /// @dev try to convert from tokenIn to tokenOut using price feeds directly: (quote = amountIn * feedPricing)
+    /// @return quote from oracle feed in output token decimal
     function tryQuoteWithFeed(address tokenIn, address tokenOut, uint256 amountIn) public view returns (uint256){		
         uint256 _inDecimals = 10 ** ERC20(tokenIn).decimals();
         uint256 _outDecimals = 10 ** ERC20(tokenOut).decimals();		
