@@ -1,6 +1,8 @@
 import pytest
 from brownie import *
 
+import brownie
+
 def test_eth_btc_usd(pricer, oneE18):  
   pETH = pricer.getEthUsdPrice()
   assert pETH > 800 * 100000000 
@@ -48,7 +50,41 @@ def test_fetch_usd(pricer, weth, wbtc, badger, ohm):
   assert abs(pWBTC - pBTC) / pWBTC < 0.015
   
   pOHMv2 = pricer.fetchUSDFeed(ohm.address) 
-  assert pOHMv2 > 5 * 100000000
+  assert pOHMv2 > 5 * 100000000  
 
+def test_staleness(pricer, wbtc, badger, oneE18):  
+  pETH = pricer.getEthUsdPrice()
+  assert pETH > 800 * 100000000 
+  
+  pBTC = pricer.getBtcUsdPrice()
+  assert pBTC > 10000 * 100000000  
+  
+  pBadgerETH = pricer.getPriceInETH(badger.address)
+  assert pBadgerETH > 0.0005 * oneE18
+   
+  pBadgerUSD = pricer.getPriceInUSD(badger.address)
+  assert pBadgerUSD > 1 * 100000000
+  
+  pWBTC = pricer.getPriceInBTC(wbtc.address)
+  assert pWBTC > 0.995 * 100000000
+  
+  ## one hour heartbeat
+  chain.sleep(3600 + 1)
+  chain.mine(1)
+  with brownie.reverts("!stale"):
+       pricer.getEthUsdPrice()
+  with brownie.reverts("!stale"):
+       pricer.getBtcUsdPrice()
+       
+  ## 24 hours heartbeat
+  chain.sleep(86400 + 1)
+  chain.mine(1)  
+  with brownie.reverts("!stale"):
+       pricer.getPriceInETH(badger.address)
+  with brownie.reverts("!stale"):
+       pricer.getPriceInUSD(badger.address)
+  with brownie.reverts("!stale"):
+       pricer.getPriceInBTC(wbtc.address)
+  
   
 
