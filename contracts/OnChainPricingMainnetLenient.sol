@@ -38,6 +38,8 @@ contract OnChainPricingMainnetLenient is OnChainPricingMainnet {
     uint256 private constant MAX_SLIPPAGE = 500; // 5%
 
     uint256 public slippage = 200; // 2% Initially
+    uint256 private constant SECONDS_PER_HOUR = 3600;
+    uint256 private constant SECONDS_PER_DAY = 86400;
 
     constructor(
         address _uniV3Simulator, 
@@ -148,6 +150,7 @@ contract OnChainPricingMainnetLenient is OnChainPricingMainnet {
     /// @return price value scaled by 10^8
     function getEthUsdPrice() public view returns (uint256) {
         (uint80 roundID, int price, uint startedAt, uint timeStamp, uint80 answeredInRound) = FeedRegistryInterface(FEED_REGISTRY).latestRoundData(Denominations.ETH, Denominations.USD);
+        require(block.timestamp - timeStamp <= SECONDS_PER_HOUR, '!stale'); // Check for freshness of feed
         return uint256(price);
     }
 	
@@ -155,13 +158,15 @@ contract OnChainPricingMainnetLenient is OnChainPricingMainnet {
     /// @return price value scaled by 10^8
     function getBtcUsdPrice() public view returns (uint256) {
         (uint80 roundID, int price, uint startedAt, uint timeStamp, uint80 answeredInRound) = FeedRegistryInterface(FEED_REGISTRY).latestRoundData(Denominations.BTC, Denominations.USD);
+        require(block.timestamp - timeStamp <= SECONDS_PER_HOUR, '!stale'); // Check for freshness of feed
         return uint256(price);
     }
 
     /// @dev Returns the latest price of given base token in USD
     /// @return price value scaled by 10^8 or 0 if no valid price feed is found
     function getPriceInUSD(address base) public view returns (uint256) {
-        try FeedRegistryInterface(FEED_REGISTRY).latestRoundData(base, Denominations.USD) returns (uint80 roundID, int price, uint startedAt, uint timeStamp, uint80 answeredInRound) {		
+        try FeedRegistryInterface(FEED_REGISTRY).latestRoundData(base, Denominations.USD) returns (uint80 roundID, int price, uint startedAt, uint timeStamp, uint80 answeredInRound) {	
+            require(block.timestamp - timeStamp <= SECONDS_PER_DAY, '!stale'); // Check for freshness of feed	
             return uint256(price);
         } catch {		
             return 0;
@@ -171,7 +176,8 @@ contract OnChainPricingMainnetLenient is OnChainPricingMainnet {
     /// @dev Returns the latest price of given base token in ETH
     /// @return price value scaled by 10^18 or 0 if no valid price feed is found
     function getPriceInETH(address base) public view returns (uint256) {
-        try FeedRegistryInterface(FEED_REGISTRY).latestRoundData(base, Denominations.ETH) returns (uint80 roundID, int price, uint startedAt, uint timeStamp, uint80 answeredInRound) {		
+        try FeedRegistryInterface(FEED_REGISTRY).latestRoundData(base, Denominations.ETH) returns (uint80 roundID, int price, uint startedAt, uint timeStamp, uint80 answeredInRound) {
+            require(block.timestamp - timeStamp <= SECONDS_PER_DAY, '!stale'); // Check for freshness of feed		
             return uint256(price);
         } catch {		
             return 0;
@@ -182,6 +188,7 @@ contract OnChainPricingMainnetLenient is OnChainPricingMainnet {
     /// @return price value scaled by 10^8 or 0 if no valid price feed is found
     function getPriceInBTC(address base) public view returns (uint256) {
         try FeedRegistryInterface(FEED_REGISTRY).latestRoundData(base, Denominations.BTC) returns (uint80 roundID, int price, uint startedAt, uint timeStamp, uint80 answeredInRound) {	
+            require(block.timestamp - timeStamp <= SECONDS_PER_DAY, '!stale'); // Check for freshness of feed
             return uint256(price);
         } catch {		
             return 0;
