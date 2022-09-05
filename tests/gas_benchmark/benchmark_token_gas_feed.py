@@ -1,6 +1,7 @@
 import brownie
 from brownie import *
 import pytest
+import random
 
 """
     Benchmark test for feed gas profiling in tryQuoteWithFeed with focus in DeFi category
@@ -44,28 +45,18 @@ TOP_DECIMAL18_TOKENS = [
   ("0x0cec1a9154ff802e7934fc916ed7ca50bde6844e", 50000),    # POOL  
   ("0x43dfc4159d86f3a37a5a4b3d4580b888ad7d4ddd", 50000),    # DODO  
   ("0xe28b3b32b6c345a34ff64674606124dd5aceca30", 10000),    # INJ
-  ("0x0f2d719407fdbeff09d87557abb7232601fd9f29", 10000),    # SYN 
+  ("0x0f2d719407fdbeff09d87557abb7232601fd9f29", 10000),    # SYN
 ]
 
 @pytest.mark.parametrize("token,count", TOP_DECIMAL18_TOKENS)
-def test_feed_weth(oneE18, weth, token, count, pricerwrapper):
+def test_feed_gas(oneE18, weth, usdc, token, count, pricerwrapper):
   pricer = pricerwrapper
   sell_token = token
+  buy_token = weth.address if random.random() > 0.5 else usdc.address
   ## 1e18
   sell_count = count
   sell_amount = sell_count * oneE18 ## 1e18
     
-  quote = pricer.tryQuoteWithFeedNonView(sell_token, weth.address, sell_amount)
-  assert quote.return_value[0] > 15000 ## gas consumption  
-
-@pytest.mark.parametrize("token,count", TOP_DECIMAL18_TOKENS)
-def test_feed_usdc(oneE18, usdc, token, count, pricerwrapper):
-  pricer = pricerwrapper
-  sell_token = token
-  ## 1e18
-  sell_count = count
-  sell_amount = sell_count * oneE18 ## 1e18
-    
-  quote = pricer.tryQuoteWithFeedNonView(sell_token, usdc.address, sell_amount)
-  assert quote.return_value[0] > 15000 ## gas consumption  
+  quote = pricer.tryQuoteWithFeedNonView(sell_token, buy_token, sell_amount)
+  assert quote.return_value[0] >= 15000 ## gas consumption  
  

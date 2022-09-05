@@ -130,6 +130,8 @@ contract OnChainPricingMainnet {
     address public constant ETH_USD_FEED = 0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419;
     address public constant BTC_USD_FEED = 0xF4030086522a5bEEa4988F8cA5B36dbC97BeE88c;
     address public constant WBTC_BTC_FEED = 0xfdFD9C85aD200c506Cf9e21F1FD8dd01932FBB23;
+    address public constant USDC_USD_FEED = 0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6;
+    address public constant DAI_USD_FEED = 0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9;
     
     uint256 private constant MAX_BPS = 10_000;
     uint256 private constant SECONDS_PER_HOUR = 3600;
@@ -677,20 +679,18 @@ contract OnChainPricingMainnet {
 	
     /// @dev try to convert from tokenIn to tokenOut using price feeds directly: (quote = amountIn * feedPricing)
     /// @return quote from oracle feed in output token decimal or 0 if there is no valid feed exist
-    function tryQuoteWithFeed(address tokenIn, address tokenOut, uint256 amountIn) public view returns (uint256){		
-        uint256 _inDecimals = 10 ** ERC20(tokenIn).decimals();
-        uint256 _outDecimals = 10 ** ERC20(tokenOut).decimals();		
-				
+    function tryQuoteWithFeed(address tokenIn, address tokenOut, uint256 amountIn) public view returns (uint256){
+	
         // try short-circuit to ETH feeds if possible
         if (tokenIn == WETH){
             uint256 pOutETH = getPriceInETH(tokenOut);
             if (pOutETH > 0){
-                return (amountIn * 1e18 / pOutETH) * _outDecimals / _inDecimals;			
+                return (amountIn * 1e18 / pOutETH) * 10 ** ERC20(tokenOut).decimals() / 10 ** ERC20(tokenIn).decimals();			
             }
         } else if (tokenOut == WETH) {
             uint256 pInETH = getPriceInETH(tokenIn);
             if (pInETH > 0){
-                return (amountIn * pInETH / 1e18) * _outDecimals / _inDecimals;			
+                return (amountIn * pInETH / 1e18) * 10 ** ERC20(tokenOut).decimals() / 10 ** ERC20(tokenIn).decimals();			
             }	
         }
         
@@ -704,7 +704,7 @@ contract OnChainPricingMainnet {
             return 0;		
         }
 		
-        return (amountIn * pInUSD / pOutUSD) * _outDecimals / _inDecimals;		
+        return (amountIn * pInUSD / pOutUSD) * 10 ** ERC20(tokenOut).decimals() / 10 ** ERC20(tokenIn).decimals();		
     }
 	
     /// @dev try to find USD price for given token from feed
@@ -758,7 +758,13 @@ contract OnChainPricingMainnet {
     /// @dev Returns the latest price of given base token in USD
     /// @return price value scaled by 10^8 or 0 if no valid price feed is found
     function getPriceInUSD(address base) public view returns (uint256) {
-        return _getPriceInDenomination(base, Denominations.USD);
+        if (base == USDC) {
+            return _getPriceFromFeedAggregator(USDC_USD_FEED, SECONDS_PER_DAY);
+        } else if (base == DAI){
+            return _getPriceFromFeedAggregator(DAI_USD_FEED, SECONDS_PER_HOUR);		
+        } else {
+            return _getPriceInDenomination(base, Denominations.USD);
+        }
     }
 
     /// @dev Returns the latest price of given base token in ETH

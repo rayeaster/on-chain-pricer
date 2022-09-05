@@ -49,8 +49,8 @@ WBTC_WHALE = "0xbf72da2bd84c5170618fbe5914b0eca9638d5eb5"
 ## Contracts ##
   
 @pytest.fixture
-def swapexecutor():
-  return OnChainSwapMainnet.deploy({"from": accounts[0]})
+def swapexecutor(pricer):
+  return OnChainSwapMainnet.deploy(pricer.address, {"from": accounts[0]})
   
 @pytest.fixture
 def pricerwrapper():
