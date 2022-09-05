@@ -44,24 +44,15 @@ contract OnChainSwapMainnet {
     address public constant UNIV2_ROUTER = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D; 
     address public constant SUSHI_ROUTER = 0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F;
     address public constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2; 
-	
-    uint256 public SWAP_SLIPPAGE_TOLERANCE = 500; // initially 5%
-    uint256 public constant SWAP_SLIPPAGE_MAX = 10000;
 		
     address public constant TECH_OPS = 0x86cbD0ce0c087b482782c181dA8d191De18C8275;
-    address public pricer;
+    address public immutable pricer;
 
-    function setSwapSlippageTolerance(uint256 _slippage) external {
-        require(msg.sender == TECH_OPS, "!TechOps");
-        require(_slippage < SWAP_SLIPPAGE_MAX, "!_slippage");
-        SWAP_SLIPPAGE_TOLERANCE = _slippage;
-    }		
-
-    function setPricer(address _pricer) external {
-        require(msg.sender == TECH_OPS, "!TechOps");
-        require(_pricer != address(0), "!_pricer");
+    constructor (address _pricer) {
+        require(_pricer != address(0));
         pricer = _pricer;
-    }		
+    }
+
 		
     /// @dev execute on-chain swap based on optimal quote
     /// @return output amount after swap execution
@@ -72,10 +63,13 @@ contract OnChainSwapMainnet {
     }
 		
     /// @dev execute on-chain swap based on optimal quote from OnChainPricingMainnet#findOptimalSwap
+    /// @notice The swap uses the quote as minOut,
+    ///         if you wish to add further slippage tollerance, change the Quote.amountOut before calling
     /// @return output amount after swap execution
     function doOptimalSwapWithQuote(address tokenIn, address tokenOut, uint256 amountIn, Quote memory optimalQuote) public returns(uint256){		
         SwapType dex = optimalQuote.name;
-        uint256 _minOut = optimalQuote.amountOut * (SWAP_SLIPPAGE_MAX - SWAP_SLIPPAGE_TOLERANCE) / SWAP_SLIPPAGE_MAX;
+
+        uint256 _minOut = optimalQuote.amountOut;
 		
         if (dex == SwapType.CURVE){
             return execSwapCurve(convertToAddress(optimalQuote.pools[0]), amountIn, tokenIn, tokenOut, _minOut, msg.sender);
