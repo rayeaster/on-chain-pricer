@@ -170,6 +170,10 @@ def wbtc_whale():
 @pytest.fixture
 def aura_whale():
   return accounts.at(AURA_WHALE, force=True)
+  
+@pytest.fixture
+def pricer_V_0_3_deployed():
+  return PricerWrapper.deploy("0xd27448046354839A1384D70f30e2f9528E361b03", {"from": accounts[0]})
 
 ## Forces reset before each test
 @pytest.fixture(autouse=True)
