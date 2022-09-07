@@ -132,6 +132,7 @@ contract OnChainPricingMainnet {
     address public constant WBTC_BTC_FEED = 0xfdFD9C85aD200c506Cf9e21F1FD8dd01932FBB23;
     address public constant USDC_USD_FEED = 0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6;
     address public constant DAI_USD_FEED = 0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9;
+    address public constant USDT_USD_FEED = 0x3E7d1eAB13ad0104d2750B8863b489D65364e32D;
     
     uint256 private constant MAX_BPS = 10_000;
     uint256 private constant SECONDS_PER_HOUR = 3600;
@@ -710,17 +711,32 @@ contract OnChainPricingMainnet {
     /// @dev try to find USD price for given token from feed
     /// @return USD feed value scaled by 10^8 or 0 if no valid USD/ETH/BTC feed exist 
     function fetchUSDFeed(address base) public view returns (uint256) {
-        uint256 pUSD = base == WETH? getEthUsdPrice() : getPriceInUSD(base);
+        if (base == USDC || base == USDT) {
+            return 1e8;  // shortcut for stablecoin https://defillama.com/stablecoins/Ethereum
+        } else if (base == WBTC) {
+            return _fetchUSDPriceViaBTCFeed(base);
+        } else if (base == WETH){
+            return getEthUsdPrice();
+        }
+		
+        uint256 pUSD = getPriceInUSD(base);
         if (pUSD == 0) {
             uint256 pETH = getPriceInETH(base);
             if (pETH > 0) {
                 pUSD = pETH * getEthUsdPrice() / 1e18;
             } else {			    
-                uint256 pBTC = getPriceInBTC(base);
-                if (pBTC > 0){
-                    pUSD = pBTC * getBtcUsdPrice() / 1e8;				
-                }
+                pUSD = _fetchUSDPriceViaBTCFeed(base);	
             }
+        }
+        return pUSD;
+    }
+	
+    /// @dev calculate USD pricing of base token via its BTC feed and BTC USD pricing
+    function _fetchUSDPriceViaBTCFeed(address base) internal view returns (uint256) {
+        uint256 pUSD = 0;
+        uint256 pBTC = getPriceInBTC(base);
+        if (pBTC > 0){
+            pUSD = pBTC * getBtcUsdPrice() / 1e8;				
         }
         return pUSD;
     }
@@ -729,7 +745,7 @@ contract OnChainPricingMainnet {
     /// @dev https://docs.chain.link/docs/ethereum-addresses/
     function _getPriceFromFeedAggregator(address _aggregator, uint256 _expire) internal view returns (uint256) {
         (uint80 roundID, int price, uint startedAt, uint timeStamp, uint80 answeredInRound) = AggregatorV2V3Interface(_aggregator).latestRoundData();
-        require(block.timestamp - timeStamp <= _expire, '!stale'); // Check for freshness of feed
+        require(_expire > block.timestamp - timeStamp, '!stale'); // Check for freshness of feed
         return uint256(price);
     }
 	
@@ -748,7 +764,7 @@ contract OnChainPricingMainnet {
     /// @dev Returns the latest price of given base token in given Denominations
     function _getPriceInDenomination(address base, address _denom) internal view returns (uint256) {
         try FeedRegistryInterface(FEED_REGISTRY).latestRoundData(base, _denom) returns (uint80 roundID, int price, uint startedAt, uint timeStamp, uint80 answeredInRound) {
-            require(block.timestamp - timeStamp <= SECONDS_PER_DAY, '!stale'); // Check for freshness of feed	
+            require(SECONDS_PER_DAY > block.timestamp - timeStamp, '!stale'); // Check for freshness of feed	
             return uint256(price);
         } catch {		
             return 0;
@@ -762,6 +778,8 @@ contract OnChainPricingMainnet {
             return _getPriceFromFeedAggregator(USDC_USD_FEED, SECONDS_PER_DAY);
         } else if (base == DAI){
             return _getPriceFromFeedAggregator(DAI_USD_FEED, SECONDS_PER_HOUR);		
+        } else if (base == USDT){
+            return _getPriceFromFeedAggregator(USDT_USD_FEED, SECONDS_PER_DAY);		
         } else {
             return _getPriceInDenomination(base, Denominations.USD);
         }
