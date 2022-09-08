@@ -45,7 +45,23 @@ TOP_DECIMAL18_TOKENS = [
   ("0x0cec1a9154ff802e7934fc916ed7ca50bde6844e", 50000),    # POOL  
   ("0x43dfc4159d86f3a37a5a4b3d4580b888ad7d4ddd", 50000),    # DODO  
   ("0xe28b3b32b6c345a34ff64674606124dd5aceca30", 10000),    # INJ
-  ("0x0f2d719407fdbeff09d87557abb7232601fd9f29", 10000),    # SYN
+  ("0x0f2d719407fdbeff09d87557abb7232601fd9f29", 10000),    # SYN  
+  ("0xC0c293ce456fF0ED870ADd98a0828Dd4d2903DBF", 10000),    # AURA   
+  ("0x3472A5A71965499acd81997a54BBA8D852C6E53d", 10000),    # BADGER  
+  ("0x6810e776880C02933D47DB1b9fc05908e5386b96", 500),      # GNO  
+  ("0xDEf1CA1fb7FBcDC777520aa7f396b4E015F497aB", 100000),   # COW  
+  ("0xE80C0cd204D654CEbe8dd64A4857cAb6Be8345a3", 10000000), # JPEG 
+  ("0xAf5191B0De278C7286d6C7CC6ab6BB8A73bA2Cd6", 10000),    # STG
+  ("0x616e8BfA43F920657B3497DBf40D6b1A02D4608d", 10000),    # auraBAL
+  ("0x62b9c7356a2dc64a1969e19c23e4f579f9810aa7", 10000),    # cvxCRV
+  ("0x41d5d79431a913c4ae7d69a668ecdfe5ff9dfb68", 1000),     # INV
+  ("0x6243d8cea23066d098a15582d81a598b4e8391f4", 1000),     # FLX
+  ("0x01BA67AAC7f75f647D94220Cc98FB30FCc5105Bf", 100000),   # LYRA
+  ("0xFEEf77d3f69374f66429C91d732A244f074bdf74", 10000),    # cvxFXS
+  ("0xa3BeD4E1c75D00fa6f4E5E6922DB7261B5E9AcD2", 1000000),  # MTA
+  ("0x8207c1FfC5B6804F6024322CcF34F29c3541Ae26", 1000000),  # OGN
+  ("0x674C6Ad92Fd080e4004b2312b45f796a192D27a0", 10000),    # USDN
+  ("0x408e41876cccdc0f92210600ef50372656052a38", 100000),   # REN
 ]
 
 @pytest.mark.parametrize("token,count", TOP_DECIMAL18_TOKENS)
@@ -58,5 +74,6 @@ def test_feed_gas(oneE18, weth, usdc, token, count, pricerwrapper):
   sell_amount = sell_count * oneE18 ## 1e18
     
   quote = pricer.tryQuoteWithFeedNonView(sell_token, buy_token, sell_amount)
-  assert quote.return_value[0] >= 15000 ## gas consumption  
+  quote.call_trace()
+  assert quote.return_value[0] < 38000 ## gas consumption  
  
