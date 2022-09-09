@@ -15,10 +15,10 @@ def test_gas_only_uniswap_v2(oneE18, weth, pricerwrapper):
   sell_count = 100000000
   sell_amount = sell_count * oneE18 ## 1e9
     
-  tx = pricer.findOptimalSwap(token, weth.address, sell_amount)
+  tx = pricer.unsafeFindExecutableSwap(token, weth.address, sell_amount)
   assert tx[1][0] == 1 ## UNIV2  
   assert tx[1][1] > 0  
-  assert tx[0] <= 100000 ## 99578 in test simulation
+  assert tx[0] <= 60000
 
 def test_gas_uniswap_v2_sushi(oneE18, weth, pricerwrapper):
   pricer = pricerwrapper   
@@ -27,10 +27,10 @@ def test_gas_uniswap_v2_sushi(oneE18, weth, pricerwrapper):
   sell_count = 5000
   sell_amount = sell_count * oneE18 ## 1e18
     
-  tx = pricer.findOptimalSwap(token, weth.address, sell_amount)
-  assert (tx[1][0] == 7) ## PRICEFEED
+  tx = pricer.unsafeFindExecutableSwap(token, weth.address, sell_amount)
+  assert (tx[1][0] == 1 or tx[1][0] == 2) ## SUSHI or UNIV2
   assert tx[1][1] > 0  
-  assert tx[0] <= 90000 ## 83158 in test simulation
+  assert tx[0] <= 60000
 
 def test_gas_only_balancer_v2(oneE18, weth, aura, pricerwrapper):
   pricer = pricerwrapper   
@@ -39,10 +39,10 @@ def test_gas_only_balancer_v2(oneE18, weth, aura, pricerwrapper):
   sell_count = 8000
   sell_amount = sell_count * oneE18 ## 1e18
     
-  tx = pricer.findOptimalSwap(token, weth.address, sell_amount)
+  tx = pricer.unsafeFindExecutableSwap(token, weth.address, sell_amount)
   assert tx[1][0] == 5 ## BALANCER  
   assert tx[1][1] > 0  
-  assert tx[0] <= 103000 ## 101190 in test simulation
+  assert tx[0] <= 70000
 
 def test_gas_only_balancer_v2_with_weth(oneE18, wbtc, aura, pricerwrapper):
   pricer = pricerwrapper   
@@ -51,10 +51,10 @@ def test_gas_only_balancer_v2_with_weth(oneE18, wbtc, aura, pricerwrapper):
   sell_count = 8000
   sell_amount = sell_count * oneE18 ## 1e18
     
-  tx = pricer.findOptimalSwap(token, wbtc.address, sell_amount)
+  tx = pricer.unsafeFindExecutableSwap(token, wbtc.address, sell_amount)
   assert tx[1][0] == 6 ## BALANCERWITHWETH  
   assert tx[1][1] > 0  
-  assert tx[0] <= 163000 ## 161690 in test simulation
+  assert tx[0] <= 120000
 
 def test_gas_only_uniswap_v3(oneE18, weth, pricerwrapper):
   pricer = pricerwrapper   
@@ -63,10 +63,10 @@ def test_gas_only_uniswap_v3(oneE18, weth, pricerwrapper):
   sell_count = 600000
   sell_amount = sell_count * oneE18 ## 1e18
     
-  tx = pricer.findOptimalSwap(token, weth.address, sell_amount)
+  tx = pricer.unsafeFindExecutableSwap(token, weth.address, sell_amount)
   assert tx[1][0] == 3 ## UNIV3  
   assert tx[1][1] > 0  
-  assert tx[0] <= 185000 ## 180596 in test simulation
+  assert tx[0] <= 120000
 
 def test_gas_only_uniswap_v3_with_weth(oneE18, wbtc, pricerwrapper):
   pricer = pricerwrapper   
@@ -75,10 +75,10 @@ def test_gas_only_uniswap_v3_with_weth(oneE18, wbtc, pricerwrapper):
   sell_count = 600000
   sell_amount = sell_count * oneE18 ## 1e18
     
-  tx = pricer.findOptimalSwap(token, wbtc.address, sell_amount)
+  tx = pricer.unsafeFindExecutableSwap(token, wbtc.address, sell_amount)
   assert tx[1][0] == 4 ## UNIV3WITHWETH  
   assert tx[1][1] > 0  
-  assert tx[0] <= 250000 ## 249002 in test simulation
+  assert tx[0] <= 185000
 
 def test_gas_almost_everything(oneE18, wbtc, weth, pricerwrapper):
   pricer = pricerwrapper   
@@ -87,8 +87,8 @@ def test_gas_almost_everything(oneE18, wbtc, weth, pricerwrapper):
   sell_count = 10
   sell_amount = sell_count * oneE18 ## 1e18
     
-  tx = pricer.findOptimalSwap(token, wbtc.address, sell_amount)
-  assert (tx[1][0] == 7) ## PRICEFEED
+  tx = pricer.unsafeFindExecutableSwap(token, wbtc.address, sell_amount)
+  assert (tx[1][0] <= 5 or tx[1][0] == 5) ## 
   assert tx[1][1] > 0  
-  assert tx[0] <= 210000 ## 200229 in test simulation
+  assert tx[0] <= 170000
   

@@ -22,6 +22,7 @@ struct Quote {
 interface OnChainPricing {
    function isPairSupported(address tokenIn, address tokenOut, uint256 amountIn) external view returns (bool);
    function findOptimalSwap(address tokenIn, address tokenOut, uint256 amountIn) external view returns (Quote memory);
+   function unsafeFindExecutableSwap(address tokenIn, address tokenOut, uint256 amountIn) external view virtual returns (Quote memory q);
    function checkUniV3InRangeLiquidity(address token0, address token1, uint256 amountIn, uint24 _fee, bool token0Price, address _pool) external view returns (bool, uint256);
    function simulateUniV3Swap(address token0, uint256 amountIn, address token1, uint24 _fee, bool token0Price, address _pool) external view returns (uint256);
    function tryQuoteWithFeed(address tokenIn, address tokenOut, uint256 amountIn) external view returns (uint256);
@@ -46,6 +47,12 @@ contract PricerWrapper {
    function findOptimalSwap(address tokenIn, address tokenOut, uint256 amountIn) external view returns (uint256, Quote memory) {
       uint256 _gasBefore = gasleft();
       Quote memory q = OnChainPricing(pricer).findOptimalSwap(tokenIn, tokenOut, amountIn);
+      return (_gasBefore - gasleft(), q);
+   }
+
+   function unsafeFindExecutableSwap(address tokenIn, address tokenOut, uint256 amountIn) external view returns (uint256, Quote memory) {
+      uint256 _gasBefore = gasleft();
+      Quote memory q = OnChainPricing(pricer).unsafeFindExecutableSwap(tokenIn, tokenOut, amountIn);
       return (_gasBefore - gasleft(), q);
    }
    

@@ -170,6 +170,23 @@ contract OnChainPricingMainnet {
         uint256[] poolFees; // specific pool fees involved in the optimal swap path, typically in Uniswap V3
     }
 
+    /// @dev holding results from oracle feed (and possibly query from on-chain dex source as well if required)
+    struct FeedQuote {
+        uint256 finalQuote;        // end-to-end quote from tokenIn to tokenOut for given amountIn
+        uint256 tokenInToETH;      // bridging query from tokenIn to WETH using on-chain dex source
+        SwapType tokenInToETHType; // indicate the on-chain dex source bridging from tokenIn to WETH		 
+    }
+
+    /// @dev holding query parameters for on-chain dex source quote 
+    struct FindSwapQuery {
+        address tokenIn;   
+        address tokenOut;  
+        uint256 amountIn; 
+        address connector;               // connector token in between: tokenIn -> connector token -> tokenOut, mainly used for Uniswap V3 and Balancer with connector (like WETH)
+        uint256 tokenInToETHViaUniV3;    // output ETH amount from tokenIn via Uniswap V3 pool, possibly pre-calculated, see findExecutableSwap()
+        uint256 tokenInToETHViaBalancer; // output ETH amount from tokenIn via Balancer pool, possibly pre-calculated, see findExecutableSwap()
+    }
+
     /// @dev Given tokenIn, out and amountIn, returns true if a quote will be non-zero
     /// @notice Doesn't guarantee optimality, just non-zero
     function isPairSupported(address tokenIn, address tokenOut, uint256 amountIn) external view returns (bool) {
@@ -212,36 +229,47 @@ contract OnChainPricingMainnet {
     /// @param tokenOut - The token you want to buy
     /// @param amountIn - The amount of token you want to sell
     function findOptimalSwap(address tokenIn, address tokenOut, uint256 amountIn) public view virtual returns (Quote memory q) {
-        uint256 _qFeed = tryQuoteWithFeed(tokenIn, tokenOut, amountIn);		
-        if (_qFeed == 0) {		
-            q = _findOptimalSwap(tokenIn, tokenOut, amountIn);
-        } else { 
+        uint256 _qFeed = tryQuoteWithFeed(tokenIn, tokenOut, amountIn);
+        if (_qFeed > 0) {
             bytes32[] memory dummyPools;
             uint256[] memory dummyPoolFees;
-            q = Quote(SwapType.PRICEFEED, _qFeed, dummyPools, dummyPoolFees);
-        }
+            q = Quote(SwapType.PRICEFEED, _qFeed, dummyPools, dummyPoolFees);		
+        } else {
+            FindSwapQuery memory _query = FindSwapQuery(tokenIn, tokenOut, amountIn, WETH, 0, 0);	
+            q = _findOptimalSwap(_query);
+        } 
     }
 
     /// @dev View function to provide EXECUTABLE quote from tokenIn to tokenOut with given amountIn
+    /// @dev this is virtual so you can override, see Lenient Version
     /// @dev This function will use Price Feeds to confirm the quote from on-chain dex source is within acceptable slippage-range
     /// @dev a valid quote from on-chain dex source will return or just revert if it is NOT "good enough" compared to oracle feed
     function findExecutableSwap(address tokenIn, address tokenOut, uint256 amountIn) public view virtual returns (Quote memory q) {
-        uint256 _qFeed = tryQuoteWithFeed(tokenIn, tokenOut, amountIn);
-        q = _findOptimalSwap(tokenIn, tokenOut, amountIn);		
-        require(q.amountOut >= (_qFeed * (MAX_BPS - feed_tolerance) / MAX_BPS), '!feedSlip');
+        FeedQuote memory _qFeed = _feedWithPossibleETHConnector(tokenIn, tokenOut, amountIn);	
+		
+        FindSwapQuery memory _query = FindSwapQuery(tokenIn, tokenOut, amountIn, WETH, (_qFeed.tokenInToETHType == SwapType.UNIV3? _qFeed.tokenInToETH : 0), (_qFeed.tokenInToETHType == SwapType.BALANCER? _qFeed.tokenInToETH : 0));	
+        q = _findOptimalSwap(_query);		
+        
+        require(q.amountOut >= (_qFeed.finalQuote * (MAX_BPS - feed_tolerance) / MAX_BPS), '!feedSlip');
     }	
 
     /// @dev View function to provide EXECUTABLE quote from tokenIn to tokenOut with given amountIn
+    /// @dev this is virtual so you can override, see Lenient Version
     /// @dev This function will use directly the quote from on-chain dex source no matter how poorly bad (e.g., illiquid pair) it might be
-    function unsafeFindExecutableSwap(address tokenIn, address tokenOut, uint256 amountIn) public view virtual returns (Quote memory q) {
-        q = _findOptimalSwap(tokenIn, tokenOut, amountIn);
+    function unsafeFindExecutableSwap(address tokenIn, address tokenOut, uint256 amountIn) public view virtual returns (Quote memory q) {	
+        FindSwapQuery memory _query = FindSwapQuery(tokenIn, tokenOut, amountIn, WETH, 0, 0);	
+        q = _findOptimalSwap(_query);
     }
 
     /// === COMPONENT FUNCTIONS === ///
 
     /// @dev View function for testing the routing of the strategy
     /// See {findOptimalSwap}
-    function _findOptimalSwap(address tokenIn, address tokenOut, uint256 amountIn) internal view returns (Quote memory) {
+    function _findOptimalSwap(FindSwapQuery memory _query) internal view returns (Quote memory) {
+        address tokenIn = _query.tokenIn;
+        address tokenOut = _query.tokenOut;
+        uint256 amountIn = _query.amountIn;
+		
         bool wethInvolved = (tokenIn == WETH || tokenOut == WETH);
         uint256 length = wethInvolved? 5 : 7; // Add length you need
 
@@ -266,9 +294,9 @@ contract OnChainPricingMainnet {
         quotes[4] = Quote(SwapType.BALANCER, getBalancerPriceAnalytically(tokenIn, amountIn, tokenOut), dummyPools, dummyPoolFees);
 
         if(!wethInvolved){
-            quotes[5] = Quote(SwapType.UNIV3WITHWETH, (_useSinglePoolInUniV3(tokenIn, tokenOut) > 0 ? 0 : getUniV3PriceWithConnector(tokenIn, amountIn, tokenOut, WETH)), dummyPools, dummyPoolFees);	
+            quotes[5] = Quote(SwapType.UNIV3WITHWETH, (_useSinglePoolInUniV3(tokenIn, tokenOut) > 0 ? 0 : getUniV3PriceWithConnector(_query)), dummyPools, dummyPoolFees);	
 
-            quotes[6] = Quote(SwapType.BALANCERWITHWETH, getBalancerPriceWithConnectorAnalytically(tokenIn, amountIn, tokenOut, WETH), dummyPools, dummyPoolFees);		
+            quotes[6] = Quote(SwapType.BALANCERWITHWETH, getBalancerPriceWithConnectorAnalytically(_query), dummyPools, dummyPoolFees);		
         }
 
         // Because this is a generalized contract, it is best to just loop,
@@ -493,15 +521,16 @@ contract OnChainPricingMainnet {
 	
     /// @dev Given the address of the input token & amount & the output token & connector token in between (input token ---> connector token ---> output token)
     /// @return the quote for it
-    function getUniV3PriceWithConnector(address tokenIn, uint256 amountIn, address tokenOut, address connectorToken) public view returns (uint256) {
+    function getUniV3PriceWithConnector(FindSwapQuery memory _query) public view returns (uint256) {
         // Skip if there is a mainstrem direct swap or connector pools not exist
-        if (!checkUniV3PoolsExistence(tokenIn, connectorToken) || !checkUniV3PoolsExistence(connectorToken, tokenOut)){
+        bool _tokenInToConnectorPool = (_query.connector != WETH)? checkUniV3PoolsExistence(_query.tokenIn, _query.connector) : (_query.tokenInToETHViaUniV3 > 0? true : checkUniV3PoolsExistence(_query.tokenIn, _query.connector));
+        if (!_tokenInToConnectorPool || !checkUniV3PoolsExistence(_query.connector, _query.tokenOut)){
             return 0;
         }
 		
-        uint256 connectorAmount = getUniV3Price(tokenIn, amountIn, connectorToken);	
+        uint256 connectorAmount = (_query.tokenInToETHViaUniV3 > 0 && _query.connector == WETH)? _query.tokenInToETHViaUniV3 : getUniV3Price(_query.tokenIn, _query.amountIn, _query.connector);	
         if (connectorAmount > 0){	
-            return getUniV3Price(connectorToken, connectorAmount, tokenOut);
+            return getUniV3Price(_query.connector, connectorAmount, _query.tokenOut);
         } else{
             return 0;
         }
@@ -599,16 +628,18 @@ contract OnChainPricingMainnet {
     }
 	
     /// @dev Given the input/output/connector token, returns the quote for input amount from Balancer V2 using its underlying math
-    function getBalancerPriceWithConnectorAnalytically(address tokenIn, uint256 amountIn, address tokenOut, address connectorToken) public view returns (uint256) { 
-        if (getBalancerV2Pool(tokenIn, connectorToken) == BALANCERV2_NONEXIST_POOLID || getBalancerV2Pool(connectorToken, tokenOut) == BALANCERV2_NONEXIST_POOLID){
+    function getBalancerPriceWithConnectorAnalytically(FindSwapQuery memory _query) public view returns (uint256) {
+        bool _tokenInToConnectorNoPool = (_query.connector != WETH)? (getBalancerV2Pool(_query.tokenIn, _query.connector) == BALANCERV2_NONEXIST_POOLID) : 
+                                                                     (_query.tokenInToETHViaBalancer > 0? false : (getBalancerV2Pool(_query.tokenIn, _query.connector) == BALANCERV2_NONEXIST_POOLID));	
+        if (_tokenInToConnectorNoPool || getBalancerV2Pool(_query.connector, _query.tokenOut) == BALANCERV2_NONEXIST_POOLID){
             return 0;
         }
 		
-        uint256 _in2ConnectorAmt = getBalancerPriceAnalytically(tokenIn, amountIn, connectorToken);
+        uint256 _in2ConnectorAmt = (_query.tokenInToETHViaBalancer > 0 && _query.connector == WETH)? _query.tokenInToETHViaBalancer : getBalancerPriceAnalytically(_query.tokenIn, _query.amountIn, _query.connector);
         if (_in2ConnectorAmt <= 0){
             return 0;
         }
-        return getBalancerPriceAnalytically(connectorToken, _in2ConnectorAmt, tokenOut);    
+        return getBalancerPriceAnalytically(_query.connector, _in2ConnectorAmt, _query.tokenOut);    
     }
 	
     /// @return selected BalancerV2 pool given the tokenIn and tokenOut 
@@ -679,57 +710,107 @@ contract OnChainPricingMainnet {
 
     // === ORACLE VIEW FUNCTIONS === //
 	
-    /// @dev try to convert from tokenIn to tokenOut using price feeds directly: (quote = amountIn * feedPricing)
-    /// @return quote from oracle feed in output token decimal or 0 if there is no valid feed exist
-    function tryQuoteWithFeed(address tokenIn, address tokenOut, uint256 amountIn) public view returns (uint256){
+    /// @dev try to convert from tokenIn to tokenOut using price feeds
+    /// @dev note possible usage of on-chain dex sourcing if tokenIn or tokenOut got NO feed
+    /// @return quote from oracle feed in output token decimal or 0 if there is no valid feed exist for both tokenIn and tokenOut
+    function tryQuoteWithFeed(address tokenIn, address tokenOut, uint256 amountIn) public view returns (uint256){	
+        FeedQuote memory _feedQuote = _feedWithPossibleETHConnector(tokenIn, tokenOut, amountIn);	
+        return _feedQuote.finalQuote;		
+    }
+	
+    /// @dev try to convert from tokenIn to tokenOut using price feeds directly, 
+    /// @dev possibly with ETH as connector in between for query with on-chain dex source
+    /// @return {FeedQuote} or 0 if there is no feed exist for both tokenIn and tokenOut
+    function _feedWithPossibleETHConnector(address tokenIn, address tokenOut, uint256 amountIn) internal view returns (FeedQuote memory){
 	
         // try short-circuit to ETH feeds if possible
         if (tokenIn == WETH){
             uint256 pOutETH = getPriceInETH(tokenOut);
             if (pOutETH > 0){
-                return (amountIn * 1e18 / pOutETH) * _getDecimalsMultiplier(tokenOut) / 1e18;			
+                return FeedQuote((amountIn * 1e18 / pOutETH) * _getDecimalsMultiplier(tokenOut) / 1e18, 0, SwapType.PRICEFEED);			
             }
         } else if (tokenOut == WETH) {
             uint256 pInETH = getPriceInETH(tokenIn);
             if (pInETH > 0){
-                return (amountIn * pInETH / 1e18) * 1e18 / _getDecimalsMultiplier(tokenIn);			
+                return FeedQuote((amountIn * pInETH / 1e18) * 1e18 / _getDecimalsMultiplier(tokenIn), 0, SwapType.PRICEFEED);			
             }	
         }
         
         // fall-back to USD feeds as last resort
-        uint256 pInUSD = fetchUSDFeed(tokenIn);
-        if (pInUSD == 0) {
-            return 0;		
-        }
-        uint256 pOutUSD = fetchUSDFeed(tokenOut);
-        if (pOutUSD == 0) {
-            return 0;		
+        (uint256 pInUSD, uint256 _ethUSDIn)  = _fetchUSDAndPiggybackETH(tokenIn, 0);
+        (uint256 pOutUSD, uint256 _ethUSDOut) = _fetchUSDAndPiggybackETH(tokenOut, _ethUSDIn);
+		
+        if (pInUSD == 0 && pOutUSD == 0) {
+            // CASE WHEN both tokenIn and tokenOut got NO feed
+            return FeedQuote(0, 0, SwapType.PRICEFEED);		
+        } else if (pInUSD == 0){
+            // CASE WHEN only tokenOut got feed and we have to resort on-chain dex source from tokenIn to ETH
+            FindSwapQuery memory _query = FindSwapQuery(tokenIn, WETH, amountIn, WETH, 0, 0);	
+            Quote memory _tokenInToETHQuote = _findOptimalSwap(_query);
+            if (_tokenInToETHQuote.amountOut > 0) {
+                uint256 _ethUSD = _ethUSDOut > 0? _ethUSDOut : getEthUsdPrice();
+                return FeedQuote((_tokenInToETHQuote.amountOut * _ethUSD / 1e18) * _getDecimalsMultiplier(tokenOut) / pOutUSD, _tokenInToETHQuote.amountOut, _tokenInToETHQuote.name);
+            } else {
+                return FeedQuote(0, 0, SwapType.PRICEFEED);					
+            }
+        } else if (pOutUSD == 0){
+            // CASE WHEN only tokenIn got feed and we have to resort on-chain dex source from ETH to tokenOut
+            uint256 _ethUSD = _ethUSDOut > 0? _ethUSDOut : getEthUsdPrice();
+            uint256 _inBtwETH = (pInUSD * amountIn / _getDecimalsMultiplier(tokenIn)) * 1e18 / _ethUSD; 
+            FindSwapQuery memory _query = FindSwapQuery(WETH, tokenOut, _inBtwETH, WETH, 0, 0);	
+            Quote memory _ethToTokenOutQuote = _findOptimalSwap(_query);
+            if (_ethToTokenOutQuote.amountOut > 0) {
+                return FeedQuote(_ethToTokenOutQuote.amountOut, 0, SwapType.PRICEFEED);
+            } else {
+                return FeedQuote(0, 0, SwapType.PRICEFEED);					
+            }
         }
 		
-        return (amountIn * pInUSD / pOutUSD) * _getDecimalsMultiplier(tokenOut) / _getDecimalsMultiplier(tokenIn);		
+        // CASE WHEN both tokenIn and tokenOut got feeds
+        return FeedQuote((amountIn * pInUSD / pOutUSD) * _getDecimalsMultiplier(tokenOut) / _getDecimalsMultiplier(tokenIn), 0, SwapType.PRICEFEED);		
     }
 	
     /// @dev try to find USD price for given token from feed
-    /// @return USD feed value scaled by 10^8 or 0 if no valid USD/ETH/BTC feed exist 
+    /// @return USD feed value (scaled by 10^8) or 0 if no valid USD/ETH/BTC feed exist
     function fetchUSDFeed(address base) public view returns (uint256) {
-        if (base == USDC || base == USDT) {
-            return 1e8;  // shortcut for stablecoin https://defillama.com/stablecoins/Ethereum
+        (uint256 pUSD, uint256 _ethUSD) = _fetchUSDAndPiggybackETH(base, 0);
+        return pUSD;
+    }
+	
+    /// @dev try to find USD price for given token from feed and piggyback ETH USD pricing if possible
+    /// @return USD feed value (scaled by 10^8) or 0 if no valid USD/ETH/BTC feed exist 
+    function _fetchUSDAndPiggybackETH(address base, uint256 _prefetchedETHUSD) internal view returns (uint256, uint256) {
+        uint256 _ethUSD = _prefetchedETHUSD;
+		
+        if (_ifStablecoinForFeed(base)) {
+            return (1e8, _ethUSD);  // shortcut for stablecoin https://defillama.com/stablecoins/Ethereum
         } else if (base == WBTC) {
-            return _fetchUSDPriceViaBTCFeed(base);
+            return (_fetchUSDPriceViaBTCFeed(base), _ethUSD);
         } else if (base == WETH){
-            return getEthUsdPrice();
+            _ethUSD = _ethUSD > 0? _ethUSD : getEthUsdPrice();
+            return (_ethUSD, _ethUSD);
         }
 		
         uint256 pUSD = getPriceInUSD(base);
         if (pUSD == 0) {
             uint256 pETH = getPriceInETH(base);
             if (pETH > 0) {
-                pUSD = pETH * getEthUsdPrice() / 1e18;
+                _ethUSD = _ethUSD > 0? _ethUSD : getEthUsdPrice();
+                pUSD = pETH * _ethUSD / 1e18;
             } else {			    
                 pUSD = _fetchUSDPriceViaBTCFeed(base);	
             }
         }
-        return pUSD;
+        return (pUSD, _ethUSD);
+    }
+	
+    /// @dev hardcoded stablecoin list for oracle feed optimization
+    function _ifStablecoinForFeed(address token) internal view returns (bool) {
+        if (token == USDC || token == USDT){
+            return true;				
+        } else{
+            return false;				
+        }
     }
 	
     /// @dev hardcoded decimals() to save gas for some popular token

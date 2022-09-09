@@ -79,12 +79,12 @@ def test_get_univ3_price_with_connector(oneE18, wbtc, usdc, weth, dai, pricer):
   p = 100 * 15000 * 1000000
   assert pricer.sortUniV3Pools(wbtc.address, sell_amount, usdc.address)[0] >= p
   
-  quoteWithConnector = pricer.getUniV3PriceWithConnector(wbtc.address, sell_amount, usdc.address, weth.address)
+  quoteWithConnector = pricer.getUniV3PriceWithConnector([wbtc.address, usdc.address, sell_amount, weth.address, 0, 0])
 
   ## min price 
   assert quoteWithConnector >= p  
   
   ## test case for stablecoin DAI -> USDC
-  daiQuoteWithConnector = pricer.getUniV3PriceWithConnector(dai.address, 10000 * oneE18, usdc.address, weth.address)
+  daiQuoteWithConnector = pricer.getUniV3PriceWithConnector([dai.address, usdc.address, 10000 * oneE18, weth.address, 0, 0])
   assert daiQuoteWithConnector >= 10000 * 0.99 * 1000000
  

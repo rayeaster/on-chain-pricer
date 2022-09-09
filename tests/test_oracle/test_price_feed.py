@@ -120,18 +120,21 @@ def test_feed_quote(pricer, weth, badger, ohm, wbtc, usdc, aura, oneE18):
   pOhmETH = pricer.tryQuoteWithFeed(ohm.address, weth.address, 100 * 1000000000)  
   assert pOhmETH >= 100 * 0.001 * oneE18
   
-  pAuraETH = pricer.tryQuoteWithFeed(aura.address, weth.address, 100 * oneE18)  
-  assert pAuraETH == 0
+  pAuraETH = pricer.tryQuoteWithFeed(aura.address, weth.address, 1000 * oneE18)  
+  assert pAuraETH > 1000 * 0.001 * oneE18 
   
-  pETHAura = pricer.tryQuoteWithFeed(weth.address, aura.address, 100 * oneE18)  
-  assert pETHAura == 0
+  pETHAura = pricer.tryQuoteWithFeed(weth.address, aura.address, 1 * oneE18)  
+  assert pETHAura > 1 * 300 * oneE18
+  
+  pGNOCOW = pricer.tryQuoteWithFeed("0x6810e776880c02933d47db1b9fc05908e5386b96", "0xdef1ca1fb7fbcdc777520aa7f396b4e015f497ab", 10 * oneE18)  
+  assert pGNOCOW > 10 * 1000 * oneE18
 
 def test_registry_gas_usge(pricerwrapper, weth, badger, usdc, oneE18):  
   pBadgerQuote = pricerwrapper.tryQuoteWithFeedNonView(badger.address, weth.address, 1000 * oneE18)
-  assert pBadgerQuote.return_value[0] < 22000 # gas consumption
+  assert pBadgerQuote.return_value[0] < 23000 # gas consumption
   
   pBadgerUSDQuote = pricerwrapper.tryQuoteWithFeedNonView(badger.address, usdc.address, 1000 * oneE18)
-  assert pBadgerUSDQuote.return_value[0] < 22000 # gas consumption  
+  assert pBadgerUSDQuote.return_value[0] < 23000 # gas consumption  
   
   rgt = "0xD291E7a03283640FDc51b121aC401383A46cC623"
   pRGTQuote = pricerwrapper.tryQuoteWithFeedNonView(rgt, weth.address, 10000 * oneE18)
@@ -140,7 +143,7 @@ def test_registry_gas_usge(pricerwrapper, weth, badger, usdc, oneE18):
   
   pRGTUSDQuote = pricerwrapper.tryQuoteWithFeedNonView(rgt, usdc.address, 10000 * oneE18)
   assert pRGTUSDQuote.return_value[1] > 0
-  assert pRGTUSDQuote.return_value[0] < 38000 # gas consumption
+  assert pRGTUSDQuote.return_value[0] < 39000 # gas consumption
   
   
 
