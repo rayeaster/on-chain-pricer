@@ -47,6 +47,23 @@ enum SwapType {
 /// BALANCER
 /// CURVE
 /// UTILS
+/// PRICE FEED
+///
+/// @dev Supported Quote Sources 
+/// @dev quote source with ^ mark means it will be included in findOptimalSwap() and findExecutableSwap()
+/// @dev quote source with * mark means it will be included in findExecutableSwap() and unsafeFindExecutableSwap()
+/// @dev note in some cases when there is no oracle feed, findOptimalSwap() might quote from * mark source as well.
+/// -------------------------------------------------
+///   SOURCE   |  In->Out   | In->Connector->Out|  
+///
+///  PRICE FEED|    Y^      |      Y^           | 
+///    CURVE   |    Y*      |      -            |
+///    UNIV2   |    Y*      |      -            | 
+///    SUSHI   |    Y*      |      -            |
+///    UNIV3   |    Y*      |      Y*           | 
+///   BALANCER |    Y*      |      Y*           |
+///
+///--------------------------------------------------
 /// 
 contract OnChainPricingMainnet {
     using Address for address;
