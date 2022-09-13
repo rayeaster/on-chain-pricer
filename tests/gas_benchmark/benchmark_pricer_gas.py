@@ -66,7 +66,7 @@ def test_gas_only_uniswap_v3(oneE18, weth, pricerwrapper):
   tx = pricer.unsafeFindExecutableSwap(token, weth.address, sell_amount)
   assert tx[1][0] == 3 ## UNIV3  
   assert tx[1][1] > 0  
-  assert tx[0] <= 120000
+  assert tx[0] <= 140000
 
 def test_gas_only_uniswap_v3_with_weth(oneE18, wbtc, pricerwrapper):
   pricer = pricerwrapper   

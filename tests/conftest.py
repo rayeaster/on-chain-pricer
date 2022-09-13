@@ -175,7 +175,7 @@ def aura_whale():
   
 @pytest.fixture
 def pricer_V_0_3_deployed():
-  return PricerWrapper.deploy("0xd27448046354839A1384D70f30e2f9528E361b03", {"from": accounts[0]})
+  return PricerWrapper.deploy("0x2DC7693444aCd1EcA1D6dE5B3d0d8584F3870c49", {"from": accounts[0]})
 
 ## Forces reset before each test
 @pytest.fixture(autouse=True)
