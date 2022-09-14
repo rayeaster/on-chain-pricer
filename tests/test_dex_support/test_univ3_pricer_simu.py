@@ -65,7 +65,7 @@ def test_get_univ3_with_connector_no_second_pair(oneE18, balethbpt, usdc, weth, 
   sell_amount = 10000 * 1000000
 
   ## no swap path for USDC -> WETH -> BALETHBPT in Uniswap V3
-  quoteInRangeAndFee = pricer.getUniV3PriceWithConnector(usdc.address, sell_amount, balethbpt.address, weth.address)
+  quoteInRangeAndFee = pricer.getUniV3PriceWithConnector([usdc.address, balethbpt.address, sell_amount, weth.address, 0, 0])
   assert quoteInRangeAndFee == 0
   
 def test_get_univ3_with_connector_first_pair_quote_zero(oneE18, badger, usdc, weth, pricer):  
@@ -73,7 +73,7 @@ def test_get_univ3_with_connector_first_pair_quote_zero(oneE18, badger, usdc, we
   sell_amount = 10000 * 1000000
 
   ## not enough liquidity for path for BADGER -> WETH -> USDC in Uniswap V3
-  quoteInRangeAndFee = pricer.getUniV3PriceWithConnector(badger.address, sell_amount, usdc.address, weth.address)
+  quoteInRangeAndFee = pricer.getUniV3PriceWithConnector([badger.address, usdc.address, sell_amount, weth.address, 0, 0])
   assert quoteInRangeAndFee == 0 
   
 def test_only_sushi_support(oneE18, xsushi, usdc, pricer):  
@@ -89,11 +89,12 @@ def test_only_curve_support(oneE18, usdc, badger, aura, pricerwrapper):
   sell_amount = 1000 * oneE18
   
   ## USDI
-  supported = pricer.isPairSupported("0x2a54ba2964c8cd459dc568853f79813a60761b58", usdc.address, sell_amount)
+  usdi = "0x2a54ba2964c8cd459dc568853f79813a60761b58"
+  supported = pricer.isPairSupported(usdi, usdc.address, sell_amount)
   assert supported == True
-  quoteTx = pricer.findOptimalSwap("0x2a54ba2964c8cd459dc568853f79813a60761b58", usdc.address, sell_amount)
+  quoteTx = pricer.findOptimalSwap(usdi, usdc.address, sell_amount)
   assert quoteTx[1][1] > 0
-  assert quoteTx[1][0] == 0
+  assert quoteTx[1][0] == 7 ## quote(usdi -> ETH) * feed(ETH->USDC)
   
   ## not supported yet
   isBadgerAuraSupported = pricer.isPairSupported(badger.address, aura.address, sell_amount * 100)

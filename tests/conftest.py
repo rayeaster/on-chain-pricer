@@ -49,16 +49,14 @@ WBTC_WHALE = "0xbf72da2bd84c5170618fbe5914b0eca9638d5eb5"
 ## Contracts ##
   
 @pytest.fixture
-def swapexecutor():
-  return OnChainSwapMainnet.deploy({"from": accounts[0]})
+def swapexecutor(pricer):
+  return OnChainSwapMainnet.deploy(pricer.address, {"from": accounts[0]})
   
 @pytest.fixture
 def pricerwrapper():
   univ3simulator = UniV3SwapSimulator.deploy({"from": accounts[0]})
   balancerV2Simulator = BalancerSwapSimulator.deploy({"from": accounts[0]})
-  c = OnChainPricingMainnetLenient.deploy(univ3simulator.address, balancerV2Simulator.address, {"from": accounts[0]})
-  c.setSlippage(0, {"from": accounts.at(c.TECH_OPS(), force=True)})
-  
+  c = OnChainPricingMainnet.deploy(univ3simulator.address, balancerV2Simulator.address, {"from": accounts[0]})  
   return PricerWrapper.deploy(c.address, {"from": accounts[0]})
 
 @pytest.fixture
@@ -177,7 +175,7 @@ def aura_whale():
   
 @pytest.fixture
 def pricer_V_0_3_deployed():
-  return PricerWrapper.deploy("0xd27448046354839A1384D70f30e2f9528E361b03", {"from": accounts[0]})
+  return PricerWrapper.deploy("0x2DC7693444aCd1EcA1D6dE5B3d0d8584F3870c49", {"from": accounts[0]})
 
 ## Forces reset before each test
 @pytest.fixture(autouse=True)

@@ -3,6 +3,7 @@ pragma solidity 0.8.10;
 
 
 import {IERC20} from "@oz/token/ERC20/IERC20.sol";
+import {ERC20} from "@oz/token/ERC20/ERC20.sol";
 import {IERC20Metadata} from "@oz/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@oz/token/ERC20/utils/SafeERC20.sol";
 import {Address} from "@oz/utils/Address.sol";
@@ -18,6 +19,10 @@ import "../interfaces/curve/ICurveRouter.sol";
 import "../interfaces/curve/ICurvePool.sol";
 import "../interfaces/uniswap/IV3Simulator.sol";
 import "../interfaces/balancer/IBalancerV2Simulator.sol";
+
+import "@chainlink/src/v0.8/interfaces/FeedRegistryInterface.sol";
+import "@chainlink/src/v0.8/interfaces/AggregatorV2V3Interface.sol";
+import "@chainlink/src/v0.8/Denominations.sol";
 
 enum SwapType { 
     CURVE, //0
@@ -42,6 +47,23 @@ enum SwapType {
 /// BALANCER
 /// CURVE
 /// UTILS
+/// PRICE FEED
+///
+/// @dev Supported Quote Sources 
+/// @dev quote source with ^ mark means it will be included in findOptimalSwap() and findExecutableSwap()
+/// @dev quote source with * mark means it will be included in findExecutableSwap() and unsafeFindExecutableSwap()
+/// @dev note in some cases when there is no oracle feed, findOptimalSwap() might quote from * mark source as well.
+/// -------------------------------------------------
+///   SOURCE   |  In->Out   | In->Connector->Out|  
+///
+///  PRICE FEED|    Y^      |      Y^           | 
+///    CURVE   |    Y*      |      -            |
+///    UNIV2   |    Y*      |      -            | 
+///    SUSHI   |    Y*      |      -            |
+///    UNIV3   |    Y*      |      Y*           | 
+///   BALANCER |    Y*      |      Y*           |
+///
+///--------------------------------------------------
 /// 
 contract OnChainPricingMainnet {
     using Address for address;
@@ -107,18 +129,38 @@ contract OnChainPricingMainnet {
     bytes32 public constant BALANCERV2_AURABAL_BALWETH_POOLID = 0x3dd0843a028c86e0b760b1a76929d1c5ef93a2dd000200000000000000000249;
     
     address public constant GRAVIAURA = 0xBA485b556399123261a5F9c95d413B4f93107407;
+    address public constant DIGG = 0x798D1bE841a82a273720CE31c822C61a67a601C3;
     bytes32 public constant BALANCERV2_AURABAL_GRAVIAURA_WETH_POOLID = 0x0578292cb20a443ba1cde459c985ce14ca2bdee5000100000000000000000269;
-    bytes32 public constant BALANCERV2_DAI_USDC_USDT_POOLID = 0x06df3b2bbb68adc8b0e302443692037ed9f91b42000000000000000000000063;// Not used due to possible migration： https://forum.balancer.fi/t/vulnerability-disclosure/3179
+    bytes32 public constant BALANCER_V2_WBTC_DIGG_GRAVIAURA_POOLID = 0x8eb6c82c3081bbbd45dcac5afa631aac53478b7c000100000000000000000270;
+    // NOTE: Not used due to possible migration： https://forum.balancer.fi/t/vulnerability-disclosure/3179
+    bytes32 public constant BALANCERV2_DAI_USDC_USDT_POOLID = 0x06df3b2bbb68adc8b0e302443692037ed9f91b42000000000000000000000063;
 
     address public constant AURABAL = 0x616e8BfA43F920657B3497DBf40D6b1A02D4608d;
     address public constant BALWETHBPT = 0x5c6Ee304399DBdB9C8Ef030aB642B10820DB8F56;
     uint256 public constant CURVE_FEE_SCALE = 100000;
     address public constant USDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
     
+    /// NOTE: Leave them as immutable
+    /// Remove immutable for coverage
     /// @dev helper library to simulate Uniswap V3 swap
     address public immutable uniV3Simulator;
     /// @dev helper library to simulate Balancer V2 swap
     address public immutable balancerV2Simulator;
+	
+    /// @dev https://docs.chain.link/docs/feed-registry/
+    address public constant FEED_REGISTRY = 0x47Fb2585D2C56Fe188D0E6ec628a38b74fCeeeDf;
+    address public constant ETH_USD_FEED = 0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419;
+    address public constant BTC_USD_FEED = 0xF4030086522a5bEEa4988F8cA5B36dbC97BeE88c;
+    address public constant WBTC_BTC_FEED = 0xfdFD9C85aD200c506Cf9e21F1FD8dd01932FBB23;
+    address public constant USDC_USD_FEED = 0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6;
+    address public constant DAI_USD_FEED = 0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9;
+    address public constant USDT_USD_FEED = 0x3E7d1eAB13ad0104d2750B8863b489D65364e32D;
+    address public constant BTC_ETH_FEED = 0xdeb288F737066589598e9214E782fa5A8eD689e8;
+    
+    uint256 private constant MAX_BPS = 10_000;
+    uint256 private constant SECONDS_PER_HOUR = 3600;
+    uint256 private constant SECONDS_PER_DAY = 86400;
+    uint256 public feed_tolerance = 500; // 5% Initially
 
     /// UniV3, replaces an array
     /// @notice We keep above constructor, because this is a gas optimization
@@ -141,6 +183,8 @@ contract OnChainPricingMainnet {
         balancerV2Simulator = _balancerV2Simulator;
     }
 
+    /// === API FUNCTIONS === ///
+
     struct Quote {
         SwapType name;
         uint256 amountOut;
@@ -148,11 +192,35 @@ contract OnChainPricingMainnet {
         uint256[] poolFees; // specific pool fees involved in the optimal swap path, typically in Uniswap V3
     }
 
+    /// @dev holding results from oracle feed (and possibly query from on-chain dex source as well if required)
+    struct FeedQuote {
+        uint256 finalQuote;        // end-to-end quote from tokenIn to tokenOut for given amountIn
+        uint256 tokenInToETH;      // bridging query from tokenIn to WETH using on-chain dex source
+        SwapType tokenInToETHType; // indicate the on-chain dex source bridging from tokenIn to WETH		 
+    }
+
+    /// @dev holding query parameters for on-chain dex source quote 
+    struct FindSwapQuery {
+        address tokenIn;   
+        address tokenOut;  
+        uint256 amountIn; 
+        address connector;               // connector token in between: tokenIn -> connector token -> tokenOut, mainly used for Uniswap V3 and Balancer with connector (like WETH)
+        uint256 tokenInToETHViaUniV3;    // output ETH amount from tokenIn via Uniswap V3 pool, possibly pre-calculated, see findExecutableSwap()
+        uint256 tokenInToETHViaBalancer; // output ETH amount from tokenIn via Balancer pool, possibly pre-calculated, see findExecutableSwap()
+    }
+
     /// @dev Given tokenIn, out and amountIn, returns true if a quote will be non-zero
     /// @notice Doesn't guarantee optimality, just non-zero
     function isPairSupported(address tokenIn, address tokenOut, uint256 amountIn) external view returns (bool) {
         // Sorted by "assumed" reverse worst case
         // Go for higher gas cost checks assuming they are offering best precision / good price
+
+        // If Feed, return true
+        uint256 feedRes = tryQuoteWithFeed(tokenIn, tokenOut, amountIn);
+
+        if (feedRes > 0) {
+            return true;
+        }
 
         // If There's a Bal Pool, since we have to hardcode, then the price is probably non-zero
         bytes32 poolId = getBalancerV2Pool(tokenIn, tokenOut);
@@ -184,17 +252,53 @@ contract OnChainPricingMainnet {
         return false;
     }
 
-    /// @dev External function, virtual so you can override, see Lenient Version
+    /// @dev External function to provide swap quote which prioritize price feed over on-chain dex source, 
+    /// @dev this is virtual so you can override, see Lenient Version
     /// @param tokenIn - The token you want to sell
     /// @param tokenOut - The token you want to buy
     /// @param amountIn - The amount of token you want to sell
-    function findOptimalSwap(address tokenIn, address tokenOut, uint256 amountIn) external view virtual returns (Quote memory) {
-        return _findOptimalSwap(tokenIn, tokenOut, amountIn);
+    function findOptimalSwap(address tokenIn, address tokenOut, uint256 amountIn) public view virtual returns (Quote memory q) {
+        uint256 _qFeed = tryQuoteWithFeed(tokenIn, tokenOut, amountIn);
+        if (_qFeed > 0) {
+            bytes32[] memory dummyPools;
+            uint256[] memory dummyPoolFees;
+            q = Quote(SwapType.PRICEFEED, _qFeed, dummyPools, dummyPoolFees);		
+        } else {
+            FindSwapQuery memory _query = FindSwapQuery(tokenIn, tokenOut, amountIn, WETH, 0, 0);	
+            q = _findOptimalSwap(_query);
+        } 
     }
+
+    /// @dev View function to provide EXECUTABLE quote from tokenIn to tokenOut with given amountIn
+    /// @dev this is virtual so you can override, see Lenient Version
+    /// @dev This function will use Price Feeds to confirm the quote from on-chain dex source is within acceptable slippage-range
+    /// @dev a valid quote from on-chain dex source will return or just revert if it is NOT "good enough" compared to oracle feed
+    function findExecutableSwap(address tokenIn, address tokenOut, uint256 amountIn) public view virtual returns (Quote memory q) {
+        FeedQuote memory _qFeed = _feedWithPossibleETHConnector(tokenIn, tokenOut, amountIn);	
+		
+        FindSwapQuery memory _query = FindSwapQuery(tokenIn, tokenOut, amountIn, WETH, (_qFeed.tokenInToETHType == SwapType.UNIV3? _qFeed.tokenInToETH : 0), (_qFeed.tokenInToETHType == SwapType.BALANCER? _qFeed.tokenInToETH : 0));	
+        q = _findOptimalSwap(_query);		
+        
+        require(q.amountOut >= (_qFeed.finalQuote * (MAX_BPS - feed_tolerance) / MAX_BPS), '!feedSlip');
+    }	
+
+    /// @dev View function to provide EXECUTABLE quote from tokenIn to tokenOut with given amountIn
+    /// @dev this is virtual so you can override, see Lenient Version
+    /// @dev This function will use directly the quote from on-chain dex source no matter how poorly bad (e.g., illiquid pair) it might be
+    function unsafeFindExecutableSwap(address tokenIn, address tokenOut, uint256 amountIn) public view virtual returns (Quote memory q) {	
+        FindSwapQuery memory _query = FindSwapQuery(tokenIn, tokenOut, amountIn, WETH, 0, 0);	
+        q = _findOptimalSwap(_query);
+    }
+
+    /// === COMPONENT FUNCTIONS === ///
 
     /// @dev View function for testing the routing of the strategy
     /// See {findOptimalSwap}
-    function _findOptimalSwap(address tokenIn, address tokenOut, uint256 amountIn) internal view returns (Quote memory) {
+    function _findOptimalSwap(FindSwapQuery memory _query) internal view returns (Quote memory) {
+        address tokenIn = _query.tokenIn;
+        address tokenOut = _query.tokenOut;
+        uint256 amountIn = _query.amountIn;
+		
         bool wethInvolved = (tokenIn == WETH || tokenOut == WETH);
         uint256 length = wethInvolved? 5 : 7; // Add length you need
 
@@ -219,9 +323,9 @@ contract OnChainPricingMainnet {
         quotes[4] = Quote(SwapType.BALANCER, getBalancerPriceAnalytically(tokenIn, amountIn, tokenOut), dummyPools, dummyPoolFees);
 
         if(!wethInvolved){
-            quotes[5] = Quote(SwapType.UNIV3WITHWETH, (_useSinglePoolInUniV3(tokenIn, tokenOut) > 0 ? 0 : getUniV3PriceWithConnector(tokenIn, amountIn, tokenOut, WETH)), dummyPools, dummyPoolFees);	
+            quotes[5] = Quote(SwapType.UNIV3WITHWETH, (_useSinglePoolInUniV3(tokenIn, tokenOut) > 0 ? 0 : getUniV3PriceWithConnector(_query)), dummyPools, dummyPoolFees);	
 
-            quotes[6] = Quote(SwapType.BALANCERWITHWETH, getBalancerPriceWithConnectorAnalytically(tokenIn, amountIn, tokenOut, WETH), dummyPools, dummyPoolFees);		
+            quotes[6] = Quote(SwapType.BALANCERWITHWETH, getBalancerPriceWithConnectorAnalytically(_query), dummyPools, dummyPoolFees);		
         }
 
         // Because this is a generalized contract, it is best to just loop,
@@ -374,7 +478,7 @@ contract OnChainPricingMainnet {
              }
 			 
              UniV3SortPoolQuery memory _sortQuery = UniV3SortPoolQuery(_pool, token0, token1, _fee, amountIn, token0Price);
-             try IUniswapV3Simulator(uniV3Simulator).checkInRangeLiquidity(_sortQuery) returns(bool _crossTicks, uint256 _inRangeSimOut){
+             try IUniswapV3Simulator(uniV3Simulator).checkInRangeLiquidity(_sortQuery) returns (bool _crossTicks, uint256 _inRangeSimOut){
                  return (_crossTicks, _inRangeSimOut);
              } catch {
                  return (false, 0);			 
@@ -430,7 +534,7 @@ contract OnChainPricingMainnet {
     /// @dev simulate Uniswap V3 swap using its tick-based math for given parameters
     /// @dev check helper UniV3SwapSimulator for more
     function simulateUniV3Swap(address token0, uint256 amountIn, address token1, uint24 _fee, bool token0Price, address _pool) public view returns (uint256) {
-        try IUniswapV3Simulator(uniV3Simulator).simulateUniV3Swap(_pool, token0, token1, token0Price, _fee, amountIn) returns(uint256 _simOut) {
+        try IUniswapV3Simulator(uniV3Simulator).simulateUniV3Swap(_pool, token0, token1, token0Price, _fee, amountIn) returns (uint256 _simOut) {
              return _simOut;
         } catch {
              return 0;			
@@ -446,15 +550,16 @@ contract OnChainPricingMainnet {
 	
     /// @dev Given the address of the input token & amount & the output token & connector token in between (input token ---> connector token ---> output token)
     /// @return the quote for it
-    function getUniV3PriceWithConnector(address tokenIn, uint256 amountIn, address tokenOut, address connectorToken) public view returns (uint256) {
+    function getUniV3PriceWithConnector(FindSwapQuery memory _query) public view returns (uint256) {
         // Skip if there is a mainstrem direct swap or connector pools not exist
-        if (!checkUniV3PoolsExistence(tokenIn, connectorToken) || !checkUniV3PoolsExistence(connectorToken, tokenOut)){
+        bool _tokenInToConnectorPool = (_query.connector != WETH)? checkUniV3PoolsExistence(_query.tokenIn, _query.connector) : (_query.tokenInToETHViaUniV3 > 0? true : checkUniV3PoolsExistence(_query.tokenIn, _query.connector));
+        if (!_tokenInToConnectorPool || !checkUniV3PoolsExistence(_query.connector, _query.tokenOut)){
             return 0;
         }
 		
-        uint256 connectorAmount = getUniV3Price(tokenIn, amountIn, connectorToken);	
+        uint256 connectorAmount = (_query.tokenInToETHViaUniV3 > 0 && _query.connector == WETH)? _query.tokenInToETHViaUniV3 : getUniV3Price(_query.tokenIn, _query.amountIn, _query.connector);	
         if (connectorAmount > 0){	
-            return getUniV3Price(connectorToken, connectorAmount, tokenOut);
+            return getUniV3Price(_query.connector, connectorAmount, _query.tokenOut);
         } else{
             return 0;
         }
@@ -524,15 +629,23 @@ contract OnChainPricingMainnet {
                 // stable pool math
                 {
                    ExactInStableQueryParam memory _stableQuery = ExactInStableQueryParam(tokens, balances, currentAmp, _inTokenIdx, _outTokenIdx, amountIn, IBalancerV2StablePool(_pool).getSwapFeePercentage());
-                   _quote = IBalancerV2Simulator(balancerV2Simulator).calcOutGivenInForStable(_stableQuery);
+                   try IBalancerV2Simulator(balancerV2Simulator).calcOutGivenInForStable(_stableQuery) returns (uint256 balQuote) {	
+                       _quote = balQuote;	
+                   } catch  {	
+                       _quote = 0;	
+                   }    
                 }
-            } catch (bytes memory) {
+            } catch {
                 // weighted pool math
                 {
                    uint256[] memory _weights = IBalancerV2WeightedPool(_pool).getNormalizedWeights();
                    require(_weights.length == tokens.length, "!lenBAL");
                    ExactInQueryParam memory _query = ExactInQueryParam(tokenIn, tokenOut, balances[_inTokenIdx], _weights[_inTokenIdx], balances[_outTokenIdx], _weights[_outTokenIdx], amountIn, IBalancerV2WeightedPool(_pool).getSwapFeePercentage());
-                   _quote = IBalancerV2Simulator(balancerV2Simulator).calcOutGivenIn(_query);
+                   try IBalancerV2Simulator(balancerV2Simulator).calcOutGivenIn(_query) returns (uint256 balQuote) {	
+                       _quote = balQuote;	
+                   } catch {	
+                       _quote = 0;	
+                   }
                 }
             }
         }
@@ -552,16 +665,18 @@ contract OnChainPricingMainnet {
     }
 	
     /// @dev Given the input/output/connector token, returns the quote for input amount from Balancer V2 using its underlying math
-    function getBalancerPriceWithConnectorAnalytically(address tokenIn, uint256 amountIn, address tokenOut, address connectorToken) public view returns (uint256) { 
-        if (getBalancerV2Pool(tokenIn, connectorToken) == BALANCERV2_NONEXIST_POOLID || getBalancerV2Pool(connectorToken, tokenOut) == BALANCERV2_NONEXIST_POOLID){
+    function getBalancerPriceWithConnectorAnalytically(FindSwapQuery memory _query) public view returns (uint256) {
+        bool _tokenInToConnectorNoPool = (_query.connector != WETH)? (getBalancerV2Pool(_query.tokenIn, _query.connector) == BALANCERV2_NONEXIST_POOLID) : 
+                                                                     (_query.tokenInToETHViaBalancer > 0? false : (getBalancerV2Pool(_query.tokenIn, _query.connector) == BALANCERV2_NONEXIST_POOLID));	
+        if (_tokenInToConnectorNoPool || getBalancerV2Pool(_query.connector, _query.tokenOut) == BALANCERV2_NONEXIST_POOLID){
             return 0;
         }
 		
-        uint256 _in2ConnectorAmt = getBalancerPriceAnalytically(tokenIn, amountIn, connectorToken);
+        uint256 _in2ConnectorAmt = (_query.tokenInToETHViaBalancer > 0 && _query.connector == WETH)? _query.tokenInToETHViaBalancer : getBalancerPriceAnalytically(_query.tokenIn, _query.amountIn, _query.connector);
         if (_in2ConnectorAmt <= 0){
             return 0;
         }
-        return getBalancerPriceAnalytically(connectorToken, _in2ConnectorAmt, tokenOut);    
+        return getBalancerPriceAnalytically(_query.connector, _in2ConnectorAmt, _query.tokenOut);    
     }
 	
     /// @return selected BalancerV2 pool given the tokenIn and tokenOut 
@@ -601,12 +716,15 @@ contract OnChainPricingMainnet {
             return BALANCERV2_AURA_WETH_POOLID;
         } else if (token0 == BALWETHBPT && token1 == AURABAL){
             return BALANCERV2_AURABAL_BALWETH_POOLID;
-            // TODO CHANGE
         } else if (token0 == AURABAL && token1 == WETH){
             return BALANCERV2_AURABAL_GRAVIAURA_WETH_POOLID;
         } else if (token0 == GRAVIAURA && token1 == WETH){
             return BALANCERV2_AURABAL_GRAVIAURA_WETH_POOLID;
-        } else{
+        } else if (token0 == WBTC && token1 == DIGG){	
+            return BALANCER_V2_WBTC_DIGG_GRAVIAURA_POOLID;	
+        } else if (token0 == DIGG && token1 == GRAVIAURA){	
+            return BALANCER_V2_WBTC_DIGG_GRAVIAURA_POOLID;        	
+        }else{
             return BALANCERV2_NONEXIST_POOLID;
         }		
     }
@@ -615,9 +733,11 @@ contract OnChainPricingMainnet {
 
     /// @dev Given the address of the CurveLike Router, the input amount, and the path, returns the quote for it
     function getCurvePrice(address router, address tokenIn, address tokenOut, uint256 amountIn) public view returns (address, uint256) {
-        (address pool, uint256 curveQuote) = ICurveRouter(router).get_best_rate(tokenIn, tokenOut, amountIn);
-
-        return (pool, curveQuote);
+        try ICurveRouter(router).get_best_rate(tokenIn, tokenOut, amountIn) returns (address pool, uint256 curveQuote) {	
+            return (pool, curveQuote);	
+        } catch {	
+            return (address(0), 0);	
+        }
     }
 	
     /// @return assembled curve pools and fees in required Quote struct for given pool
@@ -628,6 +748,200 @@ contract OnChainPricingMainnet {
         uint256[] memory curvePoolFees = new uint256[](1);
         curvePoolFees[0] = ICurvePool(_pool).fee() * CURVE_FEE_SCALE / 1e10;//https://curve.readthedocs.io/factory-pools.html?highlight=fee#StableSwap.fee
         return (curvePools, curvePoolFees);
+    }
+
+    // === ORACLE VIEW FUNCTIONS === //
+	
+    /// @dev try to convert from tokenIn to tokenOut using price feeds
+    /// @dev note possible usage of on-chain dex sourcing if tokenIn or tokenOut got NO feed
+    /// @return quote from oracle feed in output token decimal or 0 if there is no valid feed exist for both tokenIn and tokenOut
+    function tryQuoteWithFeed(address tokenIn, address tokenOut, uint256 amountIn) public view returns (uint256){	
+        FeedQuote memory _feedQuote = _feedWithPossibleETHConnector(tokenIn, tokenOut, amountIn);	
+        return _feedQuote.finalQuote;		
+    }
+	
+    /// @dev try to convert from tokenIn to tokenOut using price feeds directly, 
+    /// @dev possibly with ETH as connector in between for query with on-chain dex source
+    /// @return {FeedQuote} or 0 if there is no feed exist for both tokenIn and tokenOut
+    function _feedWithPossibleETHConnector(address tokenIn, address tokenOut, uint256 amountIn) internal view returns (FeedQuote memory){
+	
+        // try short-circuit to ETH feeds if possible
+        if (tokenIn == WETH){
+            uint256 pOutETH = getPriceInETH(tokenOut);
+            if (pOutETH > 0){
+                return FeedQuote((amountIn * 1e18 / pOutETH) * _getDecimalsMultiplier(tokenOut) / 1e18, 0, SwapType.PRICEFEED);			
+            }
+        } else if (tokenOut == WETH) {
+            uint256 pInETH = getPriceInETH(tokenIn);
+            if (pInETH > 0){
+                return FeedQuote((amountIn * pInETH / 1e18) * 1e18 / _getDecimalsMultiplier(tokenIn), 0, SwapType.PRICEFEED);			
+            }	
+        }
+        
+        // fall-back to USD feeds as last resort
+        (uint256 pInUSD, uint256 _ethUSDIn)  = _fetchUSDAndPiggybackETH(tokenIn, 0);
+        (uint256 pOutUSD, uint256 _ethUSDOut) = _fetchUSDAndPiggybackETH(tokenOut, _ethUSDIn);
+		
+        if (pInUSD == 0 && pOutUSD == 0) {
+            // CASE WHEN both tokenIn and tokenOut got NO feed
+            return FeedQuote(0, 0, SwapType.PRICEFEED);		
+        } else if (pInUSD == 0){
+            // CASE WHEN only tokenOut got feed and we have to resort on-chain dex source from tokenIn to ETH
+            FindSwapQuery memory _query = FindSwapQuery(tokenIn, WETH, amountIn, WETH, 0, 0);	
+            Quote memory _tokenInToETHQuote = _findOptimalSwap(_query);
+            if (_tokenInToETHQuote.amountOut > 0) {
+                uint256 _ethUSD = _ethUSDOut > 0? _ethUSDOut : getEthUsdPrice();
+                return FeedQuote((_tokenInToETHQuote.amountOut * _ethUSD / 1e18) * _getDecimalsMultiplier(tokenOut) / pOutUSD, _tokenInToETHQuote.amountOut, _tokenInToETHQuote.name);
+            } else {
+                return FeedQuote(0, 0, SwapType.PRICEFEED);					
+            }
+        } else if (pOutUSD == 0){
+            // CASE WHEN only tokenIn got feed and we have to resort on-chain dex source from ETH to tokenOut
+            uint256 _ethUSD = _ethUSDOut > 0? _ethUSDOut : getEthUsdPrice();
+            uint256 _inBtwETH = (pInUSD * amountIn / _getDecimalsMultiplier(tokenIn)) * 1e18 / _ethUSD; 
+            FindSwapQuery memory _query = FindSwapQuery(WETH, tokenOut, _inBtwETH, WETH, 0, 0);	
+            Quote memory _ethToTokenOutQuote = _findOptimalSwap(_query);
+            if (_ethToTokenOutQuote.amountOut > 0) {
+                return FeedQuote(_ethToTokenOutQuote.amountOut, 0, SwapType.PRICEFEED);
+            } else {
+                return FeedQuote(0, 0, SwapType.PRICEFEED);					
+            }
+        }
+		
+        // CASE WHEN both tokenIn and tokenOut got feeds
+        return FeedQuote((amountIn * pInUSD / pOutUSD) * _getDecimalsMultiplier(tokenOut) / _getDecimalsMultiplier(tokenIn), 0, SwapType.PRICEFEED);		
+    }
+	
+    /// @dev try to find USD price for given token from feed
+    /// @return USD feed value (scaled by 10^8) or 0 if no valid USD/ETH/BTC feed exist
+    function fetchUSDFeed(address base) public view returns (uint256) {
+        (uint256 pUSD, uint256 _ethUSD) = _fetchUSDAndPiggybackETH(base, 0);
+        return pUSD;
+    }
+	
+    /// @dev try to find USD price for given token from feed and piggyback ETH USD pricing if possible
+    /// @return USD feed value (scaled by 10^8) or 0 if no valid USD/ETH/BTC feed exist 
+    function _fetchUSDAndPiggybackETH(address base, uint256 _prefetchedETHUSD) internal view returns (uint256, uint256) {
+        uint256 _ethUSD = _prefetchedETHUSD;
+		
+        if (_ifStablecoinForFeed(base)) {
+            return (1e8, _ethUSD);  // shortcut for stablecoin https://defillama.com/stablecoins/Ethereum
+        } else if (base == WBTC) {
+            return (_fetchUSDPriceViaBTCFeed(base), _ethUSD);
+        } else if (base == WETH){
+            _ethUSD = _ethUSD > 0? _ethUSD : getEthUsdPrice();
+            return (_ethUSD, _ethUSD);
+        }
+		
+        uint256 pUSD = getPriceInUSD(base);
+        if (pUSD == 0) {
+            uint256 pETH = getPriceInETH(base);
+            if (pETH > 0) {
+                _ethUSD = _ethUSD > 0? _ethUSD : getEthUsdPrice();
+                pUSD = pETH * _ethUSD / 1e18;
+            } else {			    
+                pUSD = _fetchUSDPriceViaBTCFeed(base);	
+            }
+        }
+        return (pUSD, _ethUSD);
+    }
+	
+    /// @dev hardcoded stablecoin list for oracle feed optimization
+    function _ifStablecoinForFeed(address token) internal view returns (bool) {
+        if (token == USDC || token == USDT){
+            return true;				
+        } else{
+            return false;				
+        }
+    }
+	
+    /// @dev hardcoded decimals() to save gas for some popular token
+    function _getDecimalsMultiplier(address token) internal view returns (uint256) {
+        if (token == USDC || token == USDT){
+            return 1e6;				
+        } else if (token == WBTC){
+            return 1e8;				
+        } else if (token == WETH){
+            return 1e18;				
+        } else {
+            return 10 ** ERC20(token).decimals();
+        } 
+    }
+	
+    /// @dev calculate USD pricing of base token via its BTC feed and BTC USD pricing
+    function _fetchUSDPriceViaBTCFeed(address base) internal view returns (uint256) {
+        uint256 pUSD = 0;
+        uint256 pBTC = getPriceInBTC(base);
+        if (pBTC > 0){
+            pUSD = pBTC * getBtcUsdPrice() / 1e8;				
+        }
+        return pUSD;
+    }
+	
+    /// @dev Returns the price from given feed aggregator proxy
+    /// @dev https://docs.chain.link/docs/ethereum-addresses/
+    function _getPriceFromFeedAggregator(address _aggregator, uint256 _expire) internal view returns (uint256) {
+        (uint80 roundID, int price, uint startedAt, uint timeStamp, uint80 answeredInRound) = AggregatorV2V3Interface(_aggregator).latestRoundData();
+        require(_expire > block.timestamp - timeStamp, '!stale'); // Check for freshness of feed
+        return uint256(price);
+    }
+	
+    /// @dev Returns the price of BTC in USD from feed registry
+    /// @return price value scaled by 10^8
+    function getBtcUsdPrice() public view returns (uint256) {
+        return _getPriceFromFeedAggregator(BTC_USD_FEED, SECONDS_PER_HOUR);
+    }
+	
+    /// @dev Returns the price of BTC in USD from feed registry
+    /// @return price value scaled by 10^8
+    function getEthUsdPrice() public view returns (uint256) {
+        return _getPriceFromFeedAggregator(ETH_USD_FEED, SECONDS_PER_HOUR);
+    }
+
+    /// @dev Returns the latest price of given base token in given Denominations
+    function _getPriceInDenomination(address base, address _denom) internal view returns (uint256) {
+        try FeedRegistryInterface(FEED_REGISTRY).getFeed(base, _denom) returns (AggregatorV2V3Interface aggregator) {
+            (uint80 roundID, int price, uint startedAt, uint timeStamp, uint80 answeredInRound) = FeedRegistryInterface(FEED_REGISTRY).latestRoundData(base, _denom);
+            require(SECONDS_PER_DAY > block.timestamp - timeStamp, '!stale'); // Check for freshness of feed, use one day as upper limit
+            return uint256(price);
+        } catch {		
+            return 0;		   
+        }
+    }
+
+    /// @dev Returns the latest price of given base token in USD
+    /// @return price value scaled by 10^8 or 0 if no valid price feed is found
+    function getPriceInUSD(address base) public view returns (uint256) {
+        if (base == USDC) {
+            return _getPriceFromFeedAggregator(USDC_USD_FEED, SECONDS_PER_DAY);
+        } else if (base == DAI){
+            return _getPriceFromFeedAggregator(DAI_USD_FEED, SECONDS_PER_HOUR);		
+        } else if (base == USDT){
+            return _getPriceFromFeedAggregator(USDT_USD_FEED, SECONDS_PER_DAY);		
+        } else {
+            return _getPriceInDenomination(base, Denominations.USD);
+        }
+    }
+
+    /// @dev Returns the latest price of given base token in ETH
+    /// @return price value scaled by 10^18 or 0 if no valid price feed is found
+    function getPriceInETH(address base) public view returns (uint256) {
+        if (base == WBTC) {
+            uint256 pBTC = getPriceInBTC(base);
+            uint256 btc2ETH = _getPriceFromFeedAggregator(BTC_ETH_FEED, SECONDS_PER_DAY);
+            return pBTC * btc2ETH / 1e8;
+        }
+        return _getPriceInDenomination(base, Denominations.ETH);
+    }
+
+    /// @dev Returns the latest price of given base token in BTC (typically for WBTC)
+    /// @return price value scaled by 10^8 or 0 if no valid price feed is found
+    function getPriceInBTC(address base) public view returns (uint256) {
+        if (base == WBTC) {
+            return _getPriceFromFeedAggregator(WBTC_BTC_FEED, SECONDS_PER_DAY);
+        } else {		
+            return _getPriceInDenomination(base, Denominations.BTC);
+        }
     }
 
     /// === UTILS === ///
