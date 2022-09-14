@@ -213,6 +213,13 @@ contract OnChainPricingMainnet {
         // Sorted by "assumed" reverse worst case
         // Go for higher gas cost checks assuming they are offering best precision / good price
 
+        // If Feed, return true
+        uint256 feedRes = tryQuoteWithFeed(tokenIn, tokenOut, amountIn);
+
+        if (feedRes > 0) {
+            return true;
+        }
+
         // If There's a Bal Pool, since we have to hardcode, then the price is probably non-zero
         bytes32 poolId = getBalancerV2Pool(tokenIn, tokenOut);
         if (poolId != BALANCERV2_NONEXIST_POOLID){

@@ -74,8 +74,7 @@ TOKENS_18_DECIMALS = [
 ]
 
 @pytest.mark.parametrize("token", TOKENS_18_DECIMALS)
-def test_are_bribes_supported(pricerwrapper, pricer_V_0_3_deployed, token):
-  pricer = pricerwrapper ## pricer_V_0_3_deployed
+def test_are_bribes_supported(pricer, pricer_V_0_3_deployed, token):
   """
     Given a bunch of tokens historically used as bribes, verifies the pricer will return non-zero value
     We sell all to WETH which is pretty realistic
@@ -87,6 +86,6 @@ def test_are_bribes_supported(pricerwrapper, pricer_V_0_3_deployed, token):
   res = pricer.isPairSupported(token, WETH, AMOUNT)
   assert res
   
-  quote = pricer.findOptimalSwapNonView(token, WETH, AMOUNT)
-  assert quote.return_value[1] > 0
+  quote = pricer.findOptimalSwap(token, WETH, AMOUNT)
+  assert quote[1] > 0
 
