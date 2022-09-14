@@ -1,17 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 pragma solidity 0.8.10;
 
-
-import {IERC20} from "@oz/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@oz/token/ERC20/utils/SafeERC20.sol";
-
-
-import "../interfaces/uniswap/IUniswapRouterV2.sol";
-import "../interfaces/curve/ICurveRouter.sol";
-
 import {OnChainPricingMainnet} from "./OnChainPricingMainnet.sol";
-
-
 
 /// @title OnChainPricing
 /// @author Alex the Entreprenerd @ BadgerDAO
@@ -31,6 +21,8 @@ contract OnChainPricingMainnetLenient is OnChainPricingMainnet {
     uint256 private constant MAX_SLIPPAGE = 500; // 5%
 
     uint256 public slippage = 200; // 2% Initially
+    uint256 private constant SECONDS_PER_HOUR = 3600;
+    uint256 private constant SECONDS_PER_DAY = 86400;
 
     constructor(
         address _uniV3Simulator, 
@@ -47,9 +39,28 @@ contract OnChainPricingMainnetLenient is OnChainPricingMainnet {
 
     // === PRICING === //
 
-    /// @dev View function for testing the routing of the strategy
-    function findOptimalSwap(address tokenIn, address tokenOut, uint256 amountIn) external view override returns (Quote memory q) {
-        q = _findOptimalSwap(tokenIn, tokenOut, amountIn);
-        q.amountOut = q.amountOut * (MAX_BPS - slippage) / MAX_BPS;
+    /// @dev apply lenient slippage on top of parent query 
+    function findOptimalSwap(address tokenIn, address tokenOut, uint256 amountIn) public view override returns (Quote memory q) {
+        q = super.findOptimalSwap(tokenIn, tokenOut, amountIn);		
+        if (q.amountOut > 0) {		
+            q.amountOut = q.amountOut * (MAX_BPS - slippage) / MAX_BPS;
+        }
+    }
+	
+    /// @dev apply lenient slippage on top of parent query 
+    function findExecutableSwap(address tokenIn, address tokenOut, uint256 amountIn) public view override returns (Quote memory q) {
+        q = super.findExecutableSwap(tokenIn, tokenOut, amountIn);		
+        if (q.amountOut > 0) {
+            q.amountOut = q.amountOut * (MAX_BPS - slippage) / MAX_BPS;		
+        }
+    }	
+
+
+    /// @dev apply lenient slippage on top of parent query 
+    function unsafeFindExecutableSwap(address tokenIn, address tokenOut, uint256 amountIn) public view override returns (Quote memory q) {
+        q = super.unsafeFindExecutableSwap(tokenIn, tokenOut, amountIn);		
+        if (q.amountOut > 0) {
+            q.amountOut = q.amountOut * (MAX_BPS - slippage) / MAX_BPS;		
+        }
     }
 }

@@ -20,7 +20,7 @@ def test_get_univ3_price_cow(oneE18, weth, usdc_whale, pricer, pricerwrapper, pr
   
   ## ensure gas increase with try-catch is acceptable
   quoteV03 = pricer_V_0_3_deployed.simulateUniV3Swap(weth.address, sell_amount, token, 10000, False, "0xFCfDFC98062d13a11cec48c44E4613eB26a34293")
-  assert abs(quote[0] - quoteV03[0]) <= 100
+  assert abs(quote[0] - quoteV03[0]) <= 900
   
   ## check against quoter
   quoterP = interface.IV3Quoter(pricer.UNIV3_QUOTER()).quoteExactInputSingle.call(token, weth.address, 10000, sell_amount, 0, {'from': usdc_whale.address})
@@ -41,7 +41,7 @@ def test_get_univ3_price_in_range(oneE18, weth, usdc, usdc_whale, pricer, pricer
   
   ## ensure gas increase with try-catch is acceptable
   quoteInRangeV03 = pricer_V_0_3_deployed.checkUniV3InRangeLiquidity(usdc.address, weth.address, sell_amount, 500, False, "0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640")
-  assert abs(quoteInRangeV03[0] - quoteInRange[0]) <= 100
+  assert abs(quoteInRangeV03[0] - quoteInRange[0]) <= 900
   
   ## check against quoter
   quoterP = interface.IV3Quoter(pricer.UNIV3_QUOTER()).quoteExactInputSingle.call(weth.address, usdc.address, 500, sell_amount, 0, {'from': usdc_whale.address})
@@ -62,7 +62,7 @@ def test_get_univ3_price_cross_tick(oneE18, weth, usdc, usdc_whale, pricer, pric
   
   ## ensure gas increase with try-catch is acceptable
   quoteCrossTicksV03 = pricer_V_0_3_deployed.simulateUniV3Swap(usdc.address, sell_amount, weth.address, 500, False, "0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640")
-  assert abs(quoteCrossTicks[0] - quoteCrossTicksV03[0]) <= 100
+  assert abs(quoteCrossTicks[0] - quoteCrossTicksV03[0]) <= 900
   
   ## check against quoter
   quoterP = interface.IV3Quoter(pricer.UNIV3_QUOTER()).quoteExactInputSingle.call(weth.address, usdc.address, 500, sell_amount, 0, {'from': usdc_whale.address})
@@ -79,12 +79,12 @@ def test_get_univ3_price_with_connector(oneE18, wbtc, usdc, weth, dai, pricer):
   p = 100 * 15000 * 1000000
   assert pricer.sortUniV3Pools(wbtc.address, sell_amount, usdc.address)[0] >= p
   
-  quoteWithConnector = pricer.getUniV3PriceWithConnector(wbtc.address, sell_amount, usdc.address, weth.address)
+  quoteWithConnector = pricer.getUniV3PriceWithConnector([wbtc.address, usdc.address, sell_amount, weth.address, 0, 0])
 
   ## min price 
   assert quoteWithConnector >= p  
   
   ## test case for stablecoin DAI -> USDC
-  daiQuoteWithConnector = pricer.getUniV3PriceWithConnector(dai.address, 10000 * oneE18, usdc.address, weth.address)
+  daiQuoteWithConnector = pricer.getUniV3PriceWithConnector([dai.address, usdc.address, 10000 * oneE18, weth.address, 0, 0])
   assert daiQuoteWithConnector >= 10000 * 0.99 * 1000000
  

@@ -21,7 +21,7 @@ def test_pricing_equivalency_uniswap_v2(oneE18, weth, pricerwrapper, pricer_lega
   sell_count = 100000000
   sell_amount = sell_count * oneE18 
   
-  tx = pricer.findOptimalSwap(token, weth.address, sell_amount)
+  tx = pricer.unsafeFindExecutableSwap(token, weth.address, sell_amount)
   assert tx[1][0] == 1 ## UNIV2  
   quote = tx[1][1]
 
@@ -30,7 +30,7 @@ def test_pricing_equivalency_uniswap_v2(oneE18, weth, pricerwrapper, pricer_lega
   quote_legacy = tx2.return_value[1]
 
   assert quote >= quote_legacy # Optimized quote must be the same or better
-  assert tx[0] > 0 and tx[0] < tx2.gas_used  
+  assert tx[0] > 0 and tx[0] < tx2.gas_used ## There might some extra overhead using feed oracle in pricer for simple case with Uniswap V2
 
 def test_pricing_equivalency_uniswap_v2_sushi(oneE18, weth, pricerwrapper, pricer_legacy):
   pricer = pricerwrapper
@@ -38,8 +38,8 @@ def test_pricing_equivalency_uniswap_v2_sushi(oneE18, weth, pricerwrapper, price
   ## 1e18
   sell_count = 5000
   sell_amount = sell_count * oneE18 ## 1e18
-
-  tx = pricer.findOptimalSwap(token, weth.address, sell_amount)
+  
+  tx = pricer.unsafeFindExecutableSwap(token, weth.address, sell_amount)
   assert (tx[1][0] == 1 or tx[1][0] == 2) ## UNIV2 or SUSHI
   quote = tx[1][1]
 
@@ -47,7 +47,7 @@ def test_pricing_equivalency_uniswap_v2_sushi(oneE18, weth, pricerwrapper, price
   assert (tx2.return_value[0] == 1 or tx2.return_value[0] == 2) ## UNIV2 or SUSHI
   quote_legacy = tx2.return_value[1]
 
-  assert quote >= quote_legacy # Optimized quote must be the same or better
+  assert quote >= quote_legacy # Note the price feed in new version might cause some nuance there
   assert tx[0] > 0 and tx[0] < tx2.gas_used
 
 def test_pricing_equivalency_balancer_v2(oneE18, weth, aura, pricerwrapper, pricer_legacy):
@@ -57,8 +57,8 @@ def test_pricing_equivalency_balancer_v2(oneE18, weth, aura, pricerwrapper, pric
   sell_count = 8000
   sell_amount = sell_count * oneE18 ## 1e18
   
-  tx = pricer.findOptimalSwap(token, weth.address, sell_amount)
-  assert tx[1][0] == 5 ## BALANCER 
+  tx = pricer.unsafeFindExecutableSwap(token, weth.address, sell_amount)
+  assert tx[1][0] == 5 ## BALANCER  
   quote = tx[1][1]
 
   tx2 = pricer_legacy.findOptimalSwap(token, weth.address, sell_amount)
@@ -75,8 +75,8 @@ def test_pricing_equivalency_balancer_v2_with_weth(oneE18, wbtc, aura, pricerwra
   sell_count = 8000
   sell_amount = sell_count * oneE18 ## 1e18
 
-  tx = pricer.findOptimalSwap(token, wbtc.address, sell_amount)
-  assert tx[1][0] == 6 ## BALANCERWITHWETH  
+  tx = pricer.unsafeFindExecutableSwap(token, wbtc.address, sell_amount)
+  assert tx[1][0] == 6 ## BALANCERWITHWETH   
   quote = tx[1][1]
 
   tx2 = pricer_legacy.findOptimalSwap(token, wbtc.address, sell_amount)
@@ -93,8 +93,8 @@ def test_pricing_equivalency_uniswap_v3(oneE18, weth, pricerwrapper, pricer_lega
   sell_count = 600000
   sell_amount = sell_count * oneE18 ## 1e18
   
-  tx = pricer.findOptimalSwap(token, weth.address, sell_amount)
-  assert tx[1][0] == 3 ## UNIV3  
+  tx = pricer.unsafeFindExecutableSwap(token, weth.address, sell_amount)
+  assert tx[1][0] == 3 ## UNIV3   
   quote = tx[1][1]
 
   tx2 = pricer_legacy.findOptimalSwap(token, weth.address, sell_amount)
@@ -111,7 +111,7 @@ def test_pricing_equivalency_uniswap_v3_with_weth(oneE18, wbtc, pricerwrapper, p
   sell_count = 600000
   sell_amount = sell_count * oneE18 ## 1e18
 
-  tx = pricer.findOptimalSwap(token, wbtc.address, sell_amount)
+  tx = pricer.unsafeFindExecutableSwap(token, wbtc.address, sell_amount)
   assert tx[1][0] == 4 ## UNIV3WITHWETH  
   quote = tx[1][1]
 
@@ -127,9 +127,9 @@ def test_pricing_equivalency_almost_everything(oneE18, wbtc, weth, pricerwrapper
   token = weth # some swap (WETH-WBTC) almost in every DEX, the most gas-consuming scenario
   ## 1e18
   sell_count = 10
-  sell_amount = sell_count * oneE18 ## 1e18
+  sell_amount = sell_count * oneE18 ## 1e18  
   
-  tx = pricer.findOptimalSwap(token, wbtc.address, sell_amount)
+  tx = pricer.unsafeFindExecutableSwap(token, wbtc.address, sell_amount)
   assert (tx[1][0] <= 3 or tx[1][0] == 5) ## CURVE or UNIV2 or SUSHI or UNIV3 or BALANCER  
   quote = tx[1][1]
 
@@ -138,7 +138,7 @@ def test_pricing_equivalency_almost_everything(oneE18, wbtc, weth, pricerwrapper
   quote_legacy = tx2.return_value[1]
 
   assert tx2.return_value[0] == tx[1][0]
-  assert quote >= quote_legacy # Optimized quote must be the same or better, note the fixed pair in new version of univ3 pricer might cause some nuance there
+  assert quote >= quote_legacy 
   assert tx[0] > 0 and tx[0] < tx2.gas_used
 
 
@@ -158,7 +158,7 @@ def test_balancer_pricing_with_connector_equivalency(wbtc, usdc, weth, pricer, p
   sell_count = 10
   sell_amount = sell_count * 100000000
     
-  quote = pricer.getBalancerPriceWithConnectorAnalytically(wbtc.address, sell_amount, usdc.address, weth.address)
+  quote = pricer.getBalancerPriceWithConnectorAnalytically([wbtc.address, usdc.address, sell_amount, weth.address, 0, 0])
   quote_legacy = pricer_legacy.getBalancerPriceWithConnector(
     wbtc.address, 
     sell_amount, 

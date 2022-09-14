@@ -50,10 +50,10 @@ def test_get_balancer_price_with_connector(oneE18, wbtc, usdc, weth, pricer):
     
   ## minimum quote for WBTC in USDC(1e6)
   p = sell_count * 15000 * 1000000  
-  quote = pricer.getBalancerPriceWithConnectorAnalytically(wbtc.address, sell_amount, usdc.address, weth.address)
+  quote = pricer.getBalancerPriceWithConnectorAnalytically([wbtc.address, usdc.address, sell_amount, weth.address, 0, 0])
   assert quote >= p 
   
-  quoteNotEnoughBalance = pricer.getBalancerPriceWithConnectorAnalytically(wbtc.address, sell_amount * 200, usdc.address, weth.address)
+  quoteNotEnoughBalance = pricer.getBalancerPriceWithConnectorAnalytically([wbtc.address, usdc.address, sell_amount * 200, weth.address, 0, 0])
   assert quoteNotEnoughBalance == 0   
   
   ## price sanity check with dime liquidity
@@ -134,10 +134,10 @@ def test_get_balancer_with_connector_no_second_pair(oneE18, balethbpt, badger, w
   quoteNoPool = pricer.getBalancerPriceAnalytically(weth.address, sell_amount, badger.address)
   assert quoteNoPool == 0
   ## no swap path for BALETHBPT -> WETH -> BADGER in Balancer V2
-  quoteBadger = pricer.getBalancerPriceWithConnectorAnalytically(balethbpt.address, sell_amount, badger.address, weth.address)
+  quoteBadger = pricer.getBalancerPriceWithConnectorAnalytically([balethbpt.address, badger.address, sell_amount, weth.address, 0, 0])
   assert quoteBadger == 0
   ## no swap path for BADGER -> WBTC -> USDI in Balancer V2
-  quoteUSDI = pricer.getBalancerPriceWithConnectorAnalytically(badger.address, sell_amount, "0x2a54ba2964c8cd459dc568853f79813a60761b58", pricer.WBTC())
+  quoteUSDI = pricer.getBalancerPriceWithConnectorAnalytically([badger.address, "0x2a54ba2964c8cd459dc568853f79813a60761b58", sell_amount, pricer.WBTC(), 0, 0])
   assert quoteUSDI == 0
   
 def test_get_balancer_pools(weth, usdc, wbtc, pricer):  
