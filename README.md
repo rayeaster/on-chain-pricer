@@ -1,5 +1,7 @@
 # Fair Selling
 
+## TODO: Readme for V4
+
 A [BadgerDAO](https://app.badger.com/) sponsored repo of Open Source Contracts for:、
 - Calculating onChain Prices
 - Executing the best onChain Swap
