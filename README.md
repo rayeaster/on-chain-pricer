@@ -1,5 +1,16 @@
 # Fair Selling
 
+## WARNING
+
+!!! V4 functions do not revert on error, they return 0 !!!
+
+A 0 may mean the function call will revert or that there is no liquidity available
+
+For all intents and purposes, check if a quote returns 0 and if it does, do not execute it or expect a revert
+
+
+-----
+
 A [BadgerDAO](https://app.badger.com/) sponsored repo of Open Source Contracts for:、
 - Calculating onChain Prices
 - Executing the best onChain Swap
@@ -16,7 +27,7 @@ In exploring this issue we aim to:
 - Can we create a "trustless swap" that is provably not frontrun nor manipulated?
 - How would such a "self-defending" contract act and how would it be able to defend itself, get the best quote, and be certain of it (with statistical certainty)
 
-## Current Release V0.3 - Pricer
+## Current Release V0.4 - Pricer
 
 # Notable Contracts
 
@@ -38,8 +49,9 @@ Covering >80% TVL on Mainnet. (Prob even more)
 
 ## Example Usage
 
-BREAKING CHANGE: V3 is back to `view` even for Balancer and UniV3 functions
+V4 functions are `view`
 
+!!! V4 functions do not revert on error, they return 0 !!!
 ### isPairSupported
 
 Returns true if the pricer will return a non-zero quote
@@ -73,7 +85,7 @@ quote = pricer.findOptimalSwap(t_in, t_out, amt_in)
 
 # Mainnet Pricing Lenient
 
-Variation of Pricer with a slippage tollerance
+Variation of Pricer with a slippage tollerance, mostly used to allow a multisig enough wiggle room for operation
 
 
 
