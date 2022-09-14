@@ -8,7 +8,8 @@ enum SwapType {
    UNIV3, //3
    UNIV3WITHWETH, //4 
    BALANCER, //5
-   BALANCERWITHWETH //6 
+   BALANCERWITHWETH, //6
+   PRICEFEED  //7 	
 }
 
 // Onchain Pricing Interface
@@ -23,6 +24,7 @@ interface OnChainPricing {
    function findOptimalSwap(address tokenIn, address tokenOut, uint256 amountIn) external view returns (Quote memory);
    function checkUniV3InRangeLiquidity(address token0, address token1, uint256 amountIn, uint24 _fee, bool token0Price, address _pool) external view returns (bool, uint256);
    function simulateUniV3Swap(address token0, uint256 amountIn, address token1, uint24 _fee, bool token0Price, address _pool) external view returns (uint256);
+   function tryQuoteWithFeed(address tokenIn, address tokenOut, uint256 amountIn) external view returns (uint256);
 }
 // END OnchainPricing
 
@@ -34,6 +36,11 @@ contract PricerWrapper {
 	
    function isPairSupported(address tokenIn, address tokenOut, uint256 amountIn) external view returns (bool) {
       return OnChainPricing(pricer).isPairSupported(tokenIn, tokenOut, amountIn);
+   }
+   
+   /// @dev mainly for gas profiling test
+   function findOptimalSwapNonView(address tokenIn, address tokenOut, uint256 amountIn) external returns (Quote memory) {
+      return OnChainPricing(pricer).findOptimalSwap(tokenIn, tokenOut, amountIn);
    }
 
    function findOptimalSwap(address tokenIn, address tokenOut, uint256 amountIn) external view returns (uint256, Quote memory) {
@@ -52,5 +59,12 @@ contract PricerWrapper {
       uint256 _gasBefore = gasleft();
       uint256 _simOut = OnChainPricing(pricer).simulateUniV3Swap(token0, amountIn, token1, _fee, token0Price, _pool);
       return (_gasBefore - gasleft(), _simOut);
+   }
+   
+   /// @dev mainly for gas profiling
+   function tryQuoteWithFeedNonView(address tokenIn, address tokenOut, uint256 amountIn) public returns (uint256, uint256){
+      uint256 _gasBefore = gasleft();
+      uint256 _qFeed = OnChainPricing(pricer).tryQuoteWithFeed(tokenIn, tokenOut, amountIn);
+      return (_gasBefore - gasleft(), _qFeed);
    }
 }

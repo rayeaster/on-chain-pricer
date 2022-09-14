@@ -3,10 +3,10 @@ from brownie import *
 import pytest
 
 """
-    Benchmark test for token coverage in findOptimalSwap with focus in DeFi category
+    Benchmark test for feed gas profiling in tryQuoteWithFeed with focus in DeFi category
     Selected tokens from https://defillama.com/chain/Ethereum
     This file is ok to be exclcuded in test suite due to its underluying functionality should be covered by other tests
-    Rename the file to test_benchmark_token_coverage.py to make this part of the testing suite if required and optionally run with `--gas`
+    Rename the file to test_benchmark_token_gas_feed.py to make this part of the testing suite if required and run with `--gas`
 """
 
 TOP_DECIMAL18_TOKENS = [
@@ -48,13 +48,24 @@ TOP_DECIMAL18_TOKENS = [
 ]
 
 @pytest.mark.parametrize("token,count", TOP_DECIMAL18_TOKENS)
-def test_token_decimal18(oneE18, weth, token, count, pricerwrapper, pricer_V_0_3_deployed):
-  pricer = pricerwrapper ## pricer_V_0_3_deployed
+def test_feed_weth(oneE18, weth, token, count, pricerwrapper):
+  pricer = pricerwrapper
   sell_token = token
   ## 1e18
   sell_count = count
   sell_amount = sell_count * oneE18 ## 1e18
     
-  quote = pricer.findOptimalSwapNonView(sell_token, weth.address, sell_amount)
-  assert quote.return_value[1] > 0  
+  quote = pricer.tryQuoteWithFeedNonView(sell_token, weth.address, sell_amount)
+  assert quote.return_value[0] > 15000 ## gas consumption  
+
+@pytest.mark.parametrize("token,count", TOP_DECIMAL18_TOKENS)
+def test_feed_usdc(oneE18, usdc, token, count, pricerwrapper):
+  pricer = pricerwrapper
+  sell_token = token
+  ## 1e18
+  sell_count = count
+  sell_amount = sell_count * oneE18 ## 1e18
+    
+  quote = pricer.tryQuoteWithFeedNonView(sell_token, usdc.address, sell_amount)
+  assert quote.return_value[0] > 15000 ## gas consumption  
  

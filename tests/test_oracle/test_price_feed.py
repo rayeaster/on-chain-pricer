@@ -1,0 +1,112 @@
+import pytest
+from brownie import *
+
+import brownie
+
+def test_eth_btc_usd(pricer, oneE18):  
+  pETH = pricer.getEthUsdPrice()
+  assert pETH > 800 * 100000000 
+  
+  pBTC = pricer.getBtcUsdPrice()
+  assert pBTC > 10000 * 100000000  
+  
+  pBTCETH = interface.FeedRegistryInterface(pricer.FEED_REGISTRY()).latestRoundData("0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB", "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE")
+  assert pBTCETH[1] > 5 * oneE18
+
+  assert abs((pBTC / pETH) - (pBTCETH[1] / oneE18)) / (pBTC / pETH) < 0.015
+
+def test_eth_feed(pricer, badger, balethbpt, oneE18): 
+  pBadgerETH = pricer.getPriceInETH(badger.address)
+  assert pBadgerETH > 0.0005 * oneE18
+   
+  pBalBptETH = pricer.getPriceInETH(balethbpt.address)
+  assert pBalBptETH == 0  
+
+def test_usd_feed(pricer, badger, balethbpt, oneE18): 
+  pBadgerUSD = pricer.getPriceInUSD(badger.address)
+  assert pBadgerUSD > 1 * 100000000
+   
+  pBalBptUSD = pricer.getPriceInUSD(balethbpt.address)
+  assert pBalBptUSD == 0  
+
+def test_btc_feed(pricer, wbtc, balethbpt, oneE18): 
+  pWBTC = pricer.getPriceInBTC(wbtc.address)
+  assert pWBTC > 0.995 * 100000000
+   
+  pBalBptBTC = pricer.getPriceInBTC(balethbpt.address)
+  assert pBalBptBTC == 0  
+
+def test_fetch_usd(pricer, weth, wbtc, badger, ohm, aura): 
+  pWETH = pricer.fetchUSDFeed(weth.address)  
+  pETH = pricer.getEthUsdPrice()
+  assert pWETH == pETH 
+  
+  pBadger = pricer.fetchUSDFeed(badger.address)  
+  pBadgerUSD = pricer.getPriceInUSD(badger.address)
+  assert pBadgerUSD == pBadger
+  
+  pWBTC = pricer.fetchUSDFeed(wbtc.address)  
+  pBTC = pricer.getBtcUsdPrice()
+  assert abs(pWBTC - pBTC) / pWBTC < 0.015
+  
+  pOHMv2 = pricer.fetchUSDFeed(ohm.address) 
+  assert pOHMv2 > 5 * 100000000  
+  
+  pAura = pricer.fetchUSDFeed(aura.address) 
+  assert pAura == 0
+
+def test_staleness(pricer, wbtc, badger, oneE18):  
+  pETH = pricer.getEthUsdPrice()
+  assert pETH > 800 * 100000000 
+  
+  pBTC = pricer.getBtcUsdPrice()
+  assert pBTC > 10000 * 100000000  
+  
+  pBadgerETH = pricer.getPriceInETH(badger.address)
+  assert pBadgerETH > 0.0005 * oneE18
+   
+  pBadgerUSD = pricer.getPriceInUSD(badger.address)
+  assert pBadgerUSD > 1 * 100000000
+  
+  pWBTC = pricer.getPriceInBTC(wbtc.address)
+  assert pWBTC > 0.995 * 100000000
+  
+  ## one hour heartbeat
+  chain.sleep(3600 + 1)
+  chain.mine(1)
+  with brownie.reverts("!stale"):
+       pricer.getEthUsdPrice()
+  with brownie.reverts("!stale"):
+       pricer.getBtcUsdPrice()
+       
+  ## 24 hours heartbeat
+  chain.sleep(86400 + 1)
+  chain.mine(1)  
+  with brownie.reverts("!stale"):
+       pricer.getPriceInETH(badger.address)
+  with brownie.reverts("!stale"):
+       pricer.getPriceInUSD(badger.address)
+  with brownie.reverts("!stale"):
+       pricer.getPriceInBTC(wbtc.address)
+       
+def test_feed_quote(pricer, weth, badger, ohm, wbtc, usdc, aura, oneE18): 
+  pBadgerETH = pricer.tryQuoteWithFeed(badger.address, weth.address, 100 * oneE18)  
+  assert pBadgerETH >= 100 * 0.001 * oneE18
+  
+  pETHBadger = pricer.tryQuoteWithFeed(weth.address, badger.address, 1 * oneE18)  
+  assert pETHBadger >= 1 * 300 * oneE18
+  
+  pWBTCUSDC = pricer.tryQuoteWithFeed(wbtc.address, usdc.address, 1 * 100000000)  
+  assert pWBTCUSDC >= 1 * 10000 * 1000000 
+  
+  pOhmETH = pricer.tryQuoteWithFeed(ohm.address, weth.address, 100 * 1000000000)  
+  assert pOhmETH >= 100 * 0.001 * oneE18
+  
+  pAuraETH = pricer.tryQuoteWithFeed(aura.address, weth.address, 100 * oneE18)  
+  assert pAuraETH == 0
+  
+  pETHAura = pricer.tryQuoteWithFeed(weth.address, aura.address, 100 * oneE18)  
+  assert pETHAura == 0
+  
+  
+

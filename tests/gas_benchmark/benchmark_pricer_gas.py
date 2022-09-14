@@ -13,12 +13,12 @@ def test_gas_only_uniswap_v2(oneE18, weth, pricerwrapper):
   token = "0xf0f9d895aca5c8678f706fb8216fa22957685a13" # some swap (CULTDAO-WETH) only in Uniswap V2  
   ## 1e18
   sell_count = 100000000
-  sell_amount = sell_count * 1000000000 ## 1e9
+  sell_amount = sell_count * oneE18 ## 1e9
     
   tx = pricer.findOptimalSwap(token, weth.address, sell_amount)
   assert tx[1][0] == 1 ## UNIV2  
   assert tx[1][1] > 0  
-  assert tx[0] <= 80000 ## 73925 in test simulation
+  assert tx[0] <= 100000 ## 99578 in test simulation
 
 def test_gas_uniswap_v2_sushi(oneE18, weth, pricerwrapper):
   pricer = pricerwrapper   
@@ -28,7 +28,7 @@ def test_gas_uniswap_v2_sushi(oneE18, weth, pricerwrapper):
   sell_amount = sell_count * oneE18 ## 1e18
     
   tx = pricer.findOptimalSwap(token, weth.address, sell_amount)
-  assert (tx[1][0] == 1 or tx[1][0] == 2) ## UNIV2 or SUSHI
+  assert (tx[1][0] == 7) ## PRICEFEED
   assert tx[1][1] > 0  
   assert tx[0] <= 90000 ## 83158 in test simulation
 
@@ -42,7 +42,7 @@ def test_gas_only_balancer_v2(oneE18, weth, aura, pricerwrapper):
   tx = pricer.findOptimalSwap(token, weth.address, sell_amount)
   assert tx[1][0] == 5 ## BALANCER  
   assert tx[1][1] > 0  
-  assert tx[0] <= 110000 ## 101190 in test simulation
+  assert tx[0] <= 103000 ## 101190 in test simulation
 
 def test_gas_only_balancer_v2_with_weth(oneE18, wbtc, aura, pricerwrapper):
   pricer = pricerwrapper   
@@ -54,7 +54,7 @@ def test_gas_only_balancer_v2_with_weth(oneE18, wbtc, aura, pricerwrapper):
   tx = pricer.findOptimalSwap(token, wbtc.address, sell_amount)
   assert tx[1][0] == 6 ## BALANCERWITHWETH  
   assert tx[1][1] > 0  
-  assert tx[0] <= 170000 ## 161690 in test simulation
+  assert tx[0] <= 163000 ## 161690 in test simulation
 
 def test_gas_only_uniswap_v3(oneE18, weth, pricerwrapper):
   pricer = pricerwrapper   
@@ -66,7 +66,7 @@ def test_gas_only_uniswap_v3(oneE18, weth, pricerwrapper):
   tx = pricer.findOptimalSwap(token, weth.address, sell_amount)
   assert tx[1][0] == 3 ## UNIV3  
   assert tx[1][1] > 0  
-  assert tx[0] <= 160000 ## 158204 in test simulation
+  assert tx[0] <= 185000 ## 180596 in test simulation
 
 def test_gas_only_uniswap_v3_with_weth(oneE18, wbtc, pricerwrapper):
   pricer = pricerwrapper   
@@ -78,7 +78,7 @@ def test_gas_only_uniswap_v3_with_weth(oneE18, wbtc, pricerwrapper):
   tx = pricer.findOptimalSwap(token, wbtc.address, sell_amount)
   assert tx[1][0] == 4 ## UNIV3WITHWETH  
   assert tx[1][1] > 0  
-  assert tx[0] <= 230000 ## 227498 in test simulation
+  assert tx[0] <= 250000 ## 249002 in test simulation
 
 def test_gas_almost_everything(oneE18, wbtc, weth, pricerwrapper):
   pricer = pricerwrapper   
@@ -88,7 +88,7 @@ def test_gas_almost_everything(oneE18, wbtc, weth, pricerwrapper):
   sell_amount = sell_count * oneE18 ## 1e18
     
   tx = pricer.findOptimalSwap(token, wbtc.address, sell_amount)
-  assert (tx[1][0] <= 3 or tx[1][0] == 5) ## CURVE or UNIV2 or SUSHI or UNIV3 or BALANCER  
+  assert (tx[1][0] == 7) ## PRICEFEED
   assert tx[1][1] > 0  
   assert tx[0] <= 210000 ## 200229 in test simulation
   
