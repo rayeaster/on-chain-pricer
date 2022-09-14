@@ -140,6 +140,8 @@ contract OnChainPricingMainnet {
     uint256 public constant CURVE_FEE_SCALE = 100000;
     address public constant USDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
     
+    /// NOTE: Leave them as immutable
+    /// Remove immutable for coverage
     /// @dev helper library to simulate Uniswap V3 swap
     address public immutable uniV3Simulator;
     /// @dev helper library to simulate Balancer V2 swap
