@@ -36,19 +36,19 @@ def test_gas_only_balancer_v2(oneE18, weth, aura, pricerwrapper):
   pricer = pricerwrapper   
   token = aura # some swap (AURA-WETH) only in Balancer V2
   ## 1e18
-  sell_count = 8000
+  sell_count = 15000
   sell_amount = sell_count * oneE18 ## 1e18
     
   tx = pricer.unsafeFindExecutableSwap(token, weth.address, sell_amount)
   assert tx[1][0] == 5 ## BALANCER  
   assert tx[1][1] > 0  
-  assert tx[0] <= 70000
+  assert tx[0] <= 75000
 
 def test_gas_only_balancer_v2_with_weth(oneE18, wbtc, aura, pricerwrapper):
   pricer = pricerwrapper   
   token = aura # some swap (AURA-WETH-WBTC) only in Balancer V2 via WETH in between as connector
   ## 1e18
-  sell_count = 8000
+  sell_count = 15000
   sell_amount = sell_count * oneE18 ## 1e18
     
   tx = pricer.unsafeFindExecutableSwap(token, wbtc.address, sell_amount)
@@ -66,7 +66,7 @@ def test_gas_only_uniswap_v3(oneE18, weth, pricerwrapper):
   tx = pricer.unsafeFindExecutableSwap(token, weth.address, sell_amount)
   assert tx[1][0] == 3 ## UNIV3  
   assert tx[1][1] > 0  
-  assert tx[0] <= 140000
+  assert tx[0] <= 150000
 
 def test_gas_only_uniswap_v3_with_weth(oneE18, wbtc, pricerwrapper):
   pricer = pricerwrapper   
@@ -78,7 +78,7 @@ def test_gas_only_uniswap_v3_with_weth(oneE18, wbtc, pricerwrapper):
   tx = pricer.unsafeFindExecutableSwap(token, wbtc.address, sell_amount)
   assert tx[1][0] == 4 ## UNIV3WITHWETH  
   assert tx[1][1] > 0  
-  assert tx[0] <= 215000
+  assert tx[0] <= 265000
 
 def test_gas_almost_everything(oneE18, wbtc, weth, pricerwrapper):
   pricer = pricerwrapper   
@@ -90,5 +90,5 @@ def test_gas_almost_everything(oneE18, wbtc, weth, pricerwrapper):
   tx = pricer.unsafeFindExecutableSwap(token, wbtc.address, sell_amount)
   assert (tx[1][0] <= 5 or tx[1][0] == 5) ## 
   assert tx[1][1] > 0  
-  assert tx[0] <= 210000
+  assert tx[0] <= 215000
   
