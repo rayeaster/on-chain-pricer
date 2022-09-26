@@ -3,7 +3,8 @@ from brownie import *
 
 import brownie
 
-def test_eth_btc_usd(pricer, oneE18):  
+def test_eth_btc_usd(mainnetpricer, oneE18): 
+  pricer = mainnetpricer 
   pETH = pricer.getEthUsdPrice()
   assert pETH > 800 * 100000000 
   
@@ -15,7 +16,8 @@ def test_eth_btc_usd(pricer, oneE18):
 
   assert abs((pBTC / pETH) - (pBTCETH[1] / oneE18)) / (pBTC / pETH) < 0.02
 
-def test_eth_feed(pricer, badger, wbtc, balethbpt, oneE18):  
+def test_eth_feed(mainnetpricer, badger, wbtc, balethbpt, oneE18):  
+  pricer = mainnetpricer 
   pWBTCETH = pricer.getPriceInETH(wbtc.address)
   assert pWBTCETH > 6 * oneE18
   
@@ -25,7 +27,8 @@ def test_eth_feed(pricer, badger, wbtc, balethbpt, oneE18):
   pBalBptETH = pricer.getPriceInETH(balethbpt.address)
   assert pBalBptETH == 0  
 
-def test_usd_feed(pricer, badger, balethbpt, usdc, usdt, dai, oneE18):  
+def test_usd_feed(mainnetpricer, badger, balethbpt, usdc, usdt, dai, weth, oneE18):
+  pricer = mainnetpricer   
   pUSDCUSD = pricer.getPriceInUSD(usdc.address)
   assert pUSDCUSD > 0.97 * 100000000 
   
@@ -41,14 +44,16 @@ def test_usd_feed(pricer, badger, balethbpt, usdc, usdt, dai, oneE18):
   pBalBptUSD = pricer.getPriceInUSD(balethbpt.address)
   assert pBalBptUSD == 0  
 
-def test_btc_feed(pricer, wbtc, balethbpt, oneE18): 
+def test_btc_feed(mainnetpricer, wbtc, balethbpt, oneE18): 
+  pricer = mainnetpricer   
   pWBTC = pricer.getPriceInBTC(wbtc.address)
   assert pWBTC > 0.995 * 100000000
    
   pBalBptBTC = pricer.getPriceInBTC(balethbpt.address)
   assert pBalBptBTC == 0  
 
-def test_fetch_usd(pricer, weth, wbtc, badger, ohm, aura, usdc, usdt): 
+def test_fetch_usd(mainnetpricer, weth, wbtc, badger, ohm, aura, usdc, usdt): 
+  pricer = mainnetpricer   
   pWETH = pricer.fetchUSDFeed(weth.address)  
   pETH = pricer.getEthUsdPrice()
   assert pWETH == pETH 
@@ -73,7 +78,8 @@ def test_fetch_usd(pricer, weth, wbtc, badger, ohm, aura, usdc, usdt):
   pUSDT = pricer.fetchUSDFeed(usdt.address) 
   assert pUSDT == 1 * 100000000  
 
-def test_staleness(pricer, wbtc, badger, oneE18):  
+def test_staleness(mainnetpricer, wbtc, badger, oneE18):   
+  pricer = mainnetpricer   
   pETH = pricer.getEthUsdPrice()
   assert pETH > 800 * 100000000 
   
@@ -107,7 +113,8 @@ def test_staleness(pricer, wbtc, badger, oneE18):
   with brownie.reverts("!stale"):
        pricer.getPriceInBTC(wbtc.address)
        
-def test_feed_quote(pricer, weth, badger, ohm, wbtc, usdc, aura, oneE18): 
+def test_feed_quote(mainnetpricer, weth, badger, ohm, wbtc, usdc, aura, usdt, oneE18):    
+  pricer = mainnetpricer   
   pBadgerETH = pricer.tryQuoteWithFeed(badger.address, weth.address, 100 * oneE18)  
   assert pBadgerETH >= 100 * 0.001 * oneE18
   
@@ -126,10 +133,34 @@ def test_feed_quote(pricer, weth, badger, ohm, wbtc, usdc, aura, oneE18):
   pETHAura = pricer.tryQuoteWithFeed(weth.address, aura.address, 1 * oneE18)  
   assert pETHAura > 1 * 300 * oneE18
   
-  pGNOCOW = pricer.tryQuoteWithFeed("0x6810e776880c02933d47db1b9fc05908e5386b96", "0xdef1ca1fb7fbcdc777520aa7f396b4e015f497ab", 10 * oneE18)  
+  gno = "0x6810e776880c02933d47db1b9fc05908e5386b96"
+  cow = "0xdef1ca1fb7fbcdc777520aa7f396b4e015f497ab"
+  dummy = "0xc5023255Ad7E0E49D207FAD2bb628312ceA51153"
+  pGNOCOW = pricer.tryQuoteWithFeed(gno, cow, 10 * oneE18)  
   assert pGNOCOW > 10 * 1000 * oneE18
+  
+  pUSDCCOW = pricer.tryQuoteWithFeed(usdc.address, cow, 1000 * 1000000)  
+  assert pUSDCCOW > 1000 * 5 * oneE18
+  
+  pCOWUSDC = pricer.tryQuoteWithFeed(cow, usdc.address, 10000 * oneE18)  
+  assert pCOWUSDC > 10000 * 0.05 * 1000000
+  
+  pWETHUSDT = pricer.tryQuoteWithFeed(weth.address, usdt.address, 1 * oneE18)
+  assert pWETHUSDT > 1 * 800 * 1000000  
+  
+  pOHMGNO = pricer.tryQuoteWithFeed(ohm.address, gno, 1000 * oneE18)
+  assert pOHMGNO > 1000 * 0.03 * oneE18  
+  
+  pAURACOW = pricer.tryQuoteWithFeed(aura.address, cow, 10000 * oneE18)
+  assert pAURACOW == 0  
+  
+  pOHMDUMMY = pricer.tryQuoteWithFeed(ohm.address, dummy, 1 * oneE18)
+  assert pOHMDUMMY == 0 
+  
+  pDUMMYOHM = pricer.tryQuoteWithFeed(dummy, ohm.address, 1 * oneE18)
+  assert pDUMMYOHM == 0
 
-def test_registry_gas_usge(pricerwrapper, weth, badger, usdc, oneE18):  
+def test_registry_gas_usge(pricerwrapper, weth, badger, usdc, oneE18):   
   pBadgerQuote = pricerwrapper.tryQuoteWithFeedNonView(badger.address, weth.address, 1000 * oneE18)
   assert pBadgerQuote.return_value[0] < 23000 # gas consumption
   
