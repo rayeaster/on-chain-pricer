@@ -160,6 +160,8 @@ contract OnChainPricingMainnet {
     uint256 private constant MAX_BPS = 10_000;
     uint256 private constant SECONDS_PER_HOUR = 3600;
     uint256 private constant SECONDS_PER_DAY = 86400;
+
+    // NOTE: This is effectively max loss for oracle covered swaps
     uint256 public feed_tolerance = 500; // 5% Initially
 
     /// UniV3, replaces an array
@@ -321,9 +323,12 @@ contract OnChainPricingMainnet {
 
         quotes[2] = Quote(SwapType.SUSHI, getUniPrice(SUSHI_ROUTER, tokenIn, tokenOut, amountIn), dummyPools, dummyPoolFees);
 
-        quotes[3] = Quote(SwapType.UNIV3, getUniV3Price(tokenIn, amountIn, tokenOut), dummyPools, dummyPoolFees);
 
-        quotes[4] = Quote(SwapType.BALANCER, getBalancerPriceAnalytically(tokenIn, amountIn, tokenOut), dummyPools, dummyPoolFees);
+        (uint256 uniV3Quote, uint24 uniV3PoolFees) = getUniV3Price(tokenIn, amountIn, tokenOut);
+        quotes[3] = Quote(SwapType.UNIV3, uniV3Quote, dummyPools, uniV3PoolFees);
+
+        (uint256 balancerPrice, bytes32 balancerPoolId) = getBalancerPriceAnalytically(tokenIn, amountIn, tokenOut);
+        quotes[4] = Quote(SwapType.BALANCER, balancerPrice, [balancerPoolId], dummyPoolFees);
 
         if(!wethInvolved){
             quotes[5] = Quote(SwapType.UNIV3WITHWETH, (_useSinglePoolInUniV3(tokenIn, tokenOut) > 0 ? 0 : getUniV3PriceWithConnector(_query)), dummyPools, dummyPoolFees);	
@@ -546,21 +551,21 @@ contract OnChainPricingMainnet {
 	
     /// @dev Given the address of the input token & amount & the output token
     /// @return the quote for it
-    function getUniV3Price(address tokenIn, uint256 amountIn, address tokenOut) public view returns (uint256) {		
-        (uint256 _maxInRangeQuote, ) = sortUniV3Pools(tokenIn, amountIn, tokenOut);		
-        return _maxInRangeQuote;
+    function getUniV3Price(address tokenIn, uint256 amountIn, address tokenOut) public view returns (uint256, uint24) {		
+        (uint256 _maxInRangeQuote, uint24 _maxInRangeFees) = sortUniV3Pools(tokenIn, amountIn, tokenOut);		
+        return (_maxInRangeQuote, _maxInRangeFees);
     }
 	
     /// @dev Given the address of the input token & amount & the output token & connector token in between (input token ---> connector token ---> output token)
     /// @return the quote for it
-    function getUniV3PriceWithConnector(FindSwapQuery memory _query) public view returns (uint256) {
+    function getUniV3PriceWithConnector(FindSwapQuery memory _query) public view returns (uint256, uint24) {
         // Skip if there is a mainstrem direct swap or connector pools not exist
         bool _tokenInToConnectorPool = (_query.connector != WETH)? checkUniV3PoolsExistence(_query.tokenIn, _query.connector) : (_query.tokenInToETHViaUniV3 > 0? true : checkUniV3PoolsExistence(_query.tokenIn, _query.connector));
         if (!_tokenInToConnectorPool || !checkUniV3PoolsExistence(_query.connector, _query.tokenOut)){
-            return 0;
+            return (0, 0);
         }
 		
-        uint256 connectorAmount = (_query.tokenInToETHViaUniV3 > 0 && _query.connector == WETH)? _query.tokenInToETHViaUniV3 : getUniV3Price(_query.tokenIn, _query.amountIn, _query.connector);	
+        (uint256 connectorAmount, uint24 connectorSwapFee) = (_query.tokenInToETHViaUniV3 > 0 && _query.connector == WETH)? _query.tokenInToETHViaUniV3 : getUniV3Price(_query.tokenIn, _query.amountIn, _query.connector);	
         if (connectorAmount > 0){	
             return getUniV3Price(_query.connector, connectorAmount, _query.tokenOut);
         } else{
@@ -605,15 +610,15 @@ contract OnChainPricingMainnet {
     /// === BALANCER === ///
 	
     /// @dev Given the input/output token, returns the quote for input amount from Balancer V2 using its underlying math
-    function getBalancerPriceAnalytically(address tokenIn, uint256 amountIn, address tokenOut) public view returns (uint256) { 
+    function getBalancerPriceAnalytically(address tokenIn, uint256 amountIn, address tokenOut) public view returns (uint256, bytes32) { 
         bytes32 poolId = getBalancerV2Pool(tokenIn, tokenOut);
         if (poolId == BALANCERV2_NONEXIST_POOLID){
-            return 0;
+            return (0, poolId);
         }
-        return getBalancerQuoteWithinPoolAnalytcially(poolId, tokenIn, amountIn, tokenOut);
+        return (getBalancerQuoteWithinPoolAnalytically(poolId, tokenIn, amountIn, tokenOut), poolId);
     }
 	
-    function getBalancerQuoteWithinPoolAnalytcially(bytes32 poolId, address tokenIn, uint256 amountIn, address tokenOut) public view returns (uint256) {			
+    function getBalancerQuoteWithinPoolAnalytically(bytes32 poolId, address tokenIn, uint256 amountIn, address tokenOut) public view returns (uint256) {			
         uint256 _quote;		
         address _pool = getAddressFromBytes32Msb(poolId);
         
