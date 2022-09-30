@@ -65,16 +65,16 @@ def test_get_univ3_with_connector_no_second_pair(oneE18, balethbpt, usdc, weth, 
   sell_amount = 10000 * 1000000
 
   ## no swap path for USDC -> WETH -> BALETHBPT in Uniswap V3
-  quoteInRangeAndFee = pricer.getUniV3PriceWithConnector([usdc.address, balethbpt.address, sell_amount, weth.address, 0, 0])
-  assert quoteInRangeAndFee == 0
+  quoteInRangeAndFee = pricer.getUniV3PriceWithConnector([usdc.address, balethbpt.address, sell_amount, weth.address, 0, 0, 0])
+  assert quoteInRangeAndFee[0] == 0
   
 def test_get_univ3_with_connector_first_pair_quote_zero(oneE18, badger, usdc, weth, pricer):  
   ## 1e18
   sell_amount = 10000 * 1000000
 
   ## not enough liquidity for path for BADGER -> WETH -> USDC in Uniswap V3
-  quoteInRangeAndFee = pricer.getUniV3PriceWithConnector([badger.address, usdc.address, sell_amount, weth.address, 0, 0])
-  assert quoteInRangeAndFee == 0 
+  quoteInRangeAndFee = pricer.getUniV3PriceWithConnector([badger.address, usdc.address, sell_amount, weth.address, 0, 0, 0])
+  assert quoteInRangeAndFee[0] == 0 
   
 def test_only_sushi_support(oneE18, xsushi, usdc, pricer):  
   ## 1e18

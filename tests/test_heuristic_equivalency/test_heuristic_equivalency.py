@@ -151,14 +151,15 @@ def test_balancer_pricing_equivalency(oneE18, weth, usdc, pricer, pricer_legacy)
   quote = pricer.getBalancerPriceAnalytically(weth.address, sell_amount, usdc.address)
   quote_legacy = pricer_legacy.getBalancerPrice(weth.address, sell_amount, usdc.address).return_value
 
-  assert quote >= quote_legacy # Optimized quote must be the same or better
+  assert quote[0] >= quote_legacy # Optimized quote must be the same or better
+  assert quote[1] == pricer.BALANCERV2_USDC_WETH_POOLID()
 
 def test_balancer_pricing_with_connector_equivalency(wbtc, usdc, weth, pricer, pricer_legacy):  
   ## 1e8
   sell_count = 10
   sell_amount = sell_count * 100000000
     
-  quote = pricer.getBalancerPriceWithConnectorAnalytically([wbtc.address, usdc.address, sell_amount, weth.address, 0, 0])
+  quote = pricer.getBalancerPriceWithConnectorAnalytically([wbtc.address, usdc.address, sell_amount, weth.address, 0, 0, 0])
   quote_legacy = pricer_legacy.getBalancerPriceWithConnector(
     wbtc.address, 
     sell_amount, 
@@ -166,4 +167,7 @@ def test_balancer_pricing_with_connector_equivalency(wbtc, usdc, weth, pricer, p
     weth.address
   ).return_value
 
-  assert quote >= quote_legacy # Optimized quote must be the same or better
+  assert quote[0] >= quote_legacy # Optimized quote must be the same or better
+  assert quote[1][0] == pricer.BALANCERV2_WBTC_WETH_POOLID()
+  assert quote[1][1] == pricer.BALANCERV2_USDC_WETH_POOLID()
+  
