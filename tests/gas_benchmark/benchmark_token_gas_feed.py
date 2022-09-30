@@ -44,7 +44,7 @@ def test_oracle_feed_coverage(oneE18, weth, usdc, token, count, pricerwrapper):
     
   ## if tryQuoteWithFeed() return non-zero, so does findOptimalSwap()
   quote = pricer.tryQuoteWithFeedNonView(sell_token, buy_token, sell_amount)
-  print('SELLING ' + str(sell_amount) + sell_token + ' FOR ' + buy_token)
-  assert quote.return_value[0] < 110000 ## gas consumption for price feed with possible quote from on-chain dex sources  
+  print('SELLING ' + str(sell_amount) + ' ' + sell_token + ' FOR ' + buy_token)
+  assert quote.return_value[0] < 160000 ## gas consumption for price feed with possible quote from on-chain dex sources  
   assert quote.return_value[1] > 0 ## finalQuote is non-zero
  

@@ -19,7 +19,7 @@ def test_get_balancer_price_stable_analytical(oneE18, usdc, dai, pricer):
     
   ## there is a proper pool in Balancer for DAI in USDC
   poolId = pricer.BALANCERV2_DAI_USDC_USDT_POOLID()
-  quote = pricer.getBalancerQuoteWithinPoolAnalytcially(poolId, dai.address, sell_amount, usdc.address)
+  quote = pricer.getBalancerQuoteWithinPoolAnalytically(poolId, dai.address, sell_amount, usdc.address)
   assert quote >= p
 
 """
@@ -32,7 +32,7 @@ def test_get_balancer_price(oneE18, weth, usdc, pricer):
   ## minimum quote for ETH in USDC(1e6)
   p = 1 * 500 * 1000000  
   
-  quote = pricer.getBalancerPriceAnalytically(weth.address, sell_amount, usdc.address)
+  quote = pricer.getBalancerPriceAnalytically(weth.address, sell_amount, usdc.address)[0]
   assert quote >= p 
   
   ## price sanity check with fine liquidity
@@ -50,11 +50,13 @@ def test_get_balancer_price_with_connector(oneE18, wbtc, usdc, weth, pricer):
     
   ## minimum quote for WBTC in USDC(1e6)
   p = sell_count * 15000 * 1000000  
-  quote = pricer.getBalancerPriceWithConnectorAnalytically([wbtc.address, usdc.address, sell_amount, weth.address, 0, 0])
-  assert quote >= p 
+  quote = pricer.getBalancerPriceWithConnectorAnalytically([wbtc.address, usdc.address, sell_amount, weth.address, 0, 0, 0])
+  assert quote[0] >= p 
+  assert quote[1][0] == pricer.BALANCERV2_WBTC_WETH_POOLID() 
+  assert quote[1][1] == pricer.BALANCERV2_USDC_WETH_POOLID() 
   
-  quoteNotEnoughBalance = pricer.getBalancerPriceWithConnectorAnalytically([wbtc.address, usdc.address, sell_amount * 200, weth.address, 0, 0])
-  assert quoteNotEnoughBalance == 0   
+  quoteNotEnoughBalance = pricer.getBalancerPriceWithConnectorAnalytically([wbtc.address, usdc.address, sell_amount * 200, weth.address, 0, 0, 0])
+  assert quoteNotEnoughBalance[0] == 0   
   
   ## price sanity check with dime liquidity
   #yourCMCKey = 'b527d143-8597-474e-b9b2-5c28c1321c37'
@@ -71,7 +73,7 @@ def test_get_balancer_price_analytical(oneE18, weth, usdc, pricer):
     
   ## minimum quote for ETH in USDC(1e6)
   p = 1 * 500 * 1000000  
-  quote = pricer.getBalancerPriceAnalytically(weth.address, sell_amount, usdc.address)
+  quote = pricer.getBalancerPriceAnalytically(weth.address, sell_amount, usdc.address)[0]
   assert quote >= p   
   
 """
@@ -85,7 +87,7 @@ def test_get_balancer_price_ohm_analytical(oneE18, ohm, dai, pricer):
     
   ## minimum quote for OHM in DAI(1e18)
   p = sell_count * 10 * oneE18  
-  quote = pricer.getBalancerPriceAnalytically(ohm.address, sell_amount, dai.address)
+  quote = pricer.getBalancerPriceAnalytically(ohm.address, sell_amount, dai.address)[0]
   assert quote >= p     
   
 """
@@ -100,7 +102,7 @@ def test_get_balancer_price_aurabal_analytical(oneE18, aurabal, weth, pricer):
   p = sell_count * 0.006 * oneE18  
     
   ## there is a proper pool in Balancer for AURABAL in WETH
-  quote = pricer.getBalancerPriceAnalytically(aurabal.address, sell_amount, weth.address)
+  quote = pricer.getBalancerPriceAnalytically(aurabal.address, sell_amount, weth.address)[0]
   assert quote >= p     
   
 """
@@ -122,23 +124,23 @@ def test_get_balancer_price_aurabal_bpt_analytical(oneE18, aurabal, balethbpt, p
 def test_balancer_not_supported_tokens(oneE18, tusd, usdc, pricer):  
   ## tokenIn not in the given balancer pool
   with brownie.reverts("!inBAL"):
-       supported = pricer.getBalancerQuoteWithinPoolAnalytcially(pricer.BALANCERV2_DAI_USDC_USDT_POOLID(), tusd.address, 1000 * oneE18, usdc.address)
+       supported = pricer.getBalancerQuoteWithinPoolAnalytically(pricer.BALANCERV2_DAI_USDC_USDT_POOLID(), tusd.address, 1000 * oneE18, usdc.address)
   ## tokenOut not in the given balancer pool
   with brownie.reverts("!outBAL"):
-       supported = pricer.getBalancerQuoteWithinPoolAnalytcially(pricer.BALANCERV2_DAI_USDC_USDT_POOLID(), usdc.address, 1000 * 1000000, tusd.address)
+       supported = pricer.getBalancerQuoteWithinPoolAnalytically(pricer.BALANCERV2_DAI_USDC_USDT_POOLID(), usdc.address, 1000 * 1000000, tusd.address)
 
 def test_get_balancer_with_connector_no_second_pair(oneE18, balethbpt, badger, weth, pricer):  
   ## 1e18
   sell_amount = 1000 * oneE18
 
   ## no swap path for WETH -> BADGER in Balancer V2
-  quoteNoPool = pricer.getBalancerPriceAnalytically(weth.address, sell_amount, badger.address)
+  quoteNoPool = pricer.getBalancerPriceAnalytically(weth.address, sell_amount, badger.address)[0]
   assert quoteNoPool == 0
   ## no swap path for BALETHBPT -> WETH -> BADGER in Balancer V2
-  quoteBadger = pricer.getBalancerPriceWithConnectorAnalytically([balethbpt.address, badger.address, sell_amount, weth.address, 0, 0])
+  quoteBadger = pricer.getBalancerPriceWithConnectorAnalytically([balethbpt.address, badger.address, sell_amount, weth.address, 0, 0, 0])[0]
   assert quoteBadger == 0
   ## no swap path for BADGER -> WBTC -> USDI in Balancer V2
-  quoteUSDI = pricer.getBalancerPriceWithConnectorAnalytically([badger.address, "0x2a54ba2964c8cd459dc568853f79813a60761b58", sell_amount, pricer.WBTC(), 0, 0])
+  quoteUSDI = pricer.getBalancerPriceWithConnectorAnalytically([badger.address, "0x2a54ba2964c8cd459dc568853f79813a60761b58", sell_amount, pricer.WBTC(), 0, 0, 0])[0]
   assert quoteUSDI == 0
   
 def test_get_balancer_pools(weth, usdc, wbtc, pricer):  

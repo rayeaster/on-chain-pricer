@@ -176,5 +176,8 @@ def test_registry_gas_usge(pricerwrapper, weth, badger, usdc, oneE18):
   assert pRGTUSDQuote.return_value[1] > 0
   assert pRGTUSDQuote.return_value[0] < 39000 # gas consumption
   
-  
+def test_find_executable_swap(pricer, aura, oneE18): 
+  pAURAGNO = pricer.findExecutableSwap(aura.address, "0x6810e776880c02933d47db1b9fc05908e5386b96", 100000 * oneE18)  
+  assert pAURAGNO[1] >= 100000 * 0.008 * oneE18 
+  assert pAURAGNO[0] == 6 ##BALANCERWITHWETH 
 
