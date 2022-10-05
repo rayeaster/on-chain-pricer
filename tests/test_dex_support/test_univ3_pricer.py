@@ -39,9 +39,9 @@ def test_get_univ3_price_in_range(oneE18, weth, usdc, usdc_whale, pricer, pricer
   quoteInRange = pricerwrapper.checkUniV3InRangeLiquidity(usdc.address, weth.address, sell_amount, 500, False, "0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640")
   assert quoteInRange[2] >= p
   
-  ## ensure gas increase with try-catch is acceptable
+  ## there is gas increase with try-catch and twap oracle check
   quoteInRangeV03 = pricer_V_0_3_deployed.checkUniV3InRangeLiquidity(usdc.address, weth.address, sell_amount, 500, False, "0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640")
-  assert abs(quoteInRangeV03[0] - quoteInRange[0]) <= 900
+  assert abs(quoteInRangeV03[0] - quoteInRange[0]) <= 48000
   
   ## check against quoter
   quoterP = interface.IV3Quoter(pricer.UNIV3_QUOTER()).quoteExactInputSingle.call(weth.address, usdc.address, 500, sell_amount, 0, {'from': usdc_whale.address})

@@ -158,9 +158,15 @@ contract OnChainPricingMainnet {
     address public constant BTC_ETH_FEED = 0xdeb288F737066589598e9214E782fa5A8eD689e8;
     
     uint256 private constant MAX_BPS = 10_000;
+    uint256 private constant SECONDS_PER_HALFHOUR = 1800;
     uint256 private constant SECONDS_PER_HOUR = 3600;
     uint256 private constant SECONDS_PER_DAY = 86400;
-    uint256 public feed_tolerance = 500; // 5% Initially
+    uint256 public feed_tolerance = 500; // 5% Initially	
+	
+    /// @dev Say the TWAP liquidity from the pool oracle is A, valid quote require current liquidity value is NO smaller than (A / twapDeivationLiq) 
+    uint256 public twapDeivationLiq = 5;
+    ///  @dev default 1.0001^twapDeivationTick = 1.05, i.e., 5% price volatility allowance 	
+    int24 public twapDeivationTick = 500; 
 
     /// UniV3, replaces an array
     /// @notice We keep above constructor, because this is a gas optimization
@@ -472,9 +478,14 @@ contract OnChainPricingMainnet {
                  return (false, 0);
              }
 			 
-             bool _basicCheck = _checkPoolLiquidityAndBalances(IUniswapV3Pool(_pool).liquidity(), IERC20(token0Price? token0 : token1).balanceOf(_pool), amountIn);
+             uint128 _currentLiq = IUniswapV3Pool(_pool).liquidity();
+             bool _basicCheck = _checkPoolLiquidityAndBalances(_currentLiq, IERC20(token0Price? token0 : token1).balanceOf(_pool), amountIn);
              if (!_basicCheck) {
                  return (false, 0);
+             }
+			 
+             if (!checkUniV3PoolOracle(_pool, _currentLiq)){
+                 return (false, 0);			 
              }
 			 
              UniV3SortPoolQuery memory _sortQuery = UniV3SortPoolQuery(_pool, token0, token1, _fee, amountIn, token0Price);
@@ -483,6 +494,28 @@ contract OnChainPricingMainnet {
              } catch {
                  return (false, 0);			 
              }
+        }
+    }
+	
+    /// @dev heuristically check Uniswap V3 pool TWAP oracle to determine if the TWAP value is deviating current value too much	
+    /// @return true if current state (sqrt ratio & liquidity) in line with TWAP ones
+    function checkUniV3PoolOracle(address _pool, uint128 _currentLiq) public view returns (bool){
+	
+        try IUniswapV3Simulator(uniV3Simulator).consultPoolTwap(_pool, uint32(SECONDS_PER_HALFHOUR)) returns (int24 _meanTick, uint128 _meanLiq) {		    
+		
+             // decrease in-range liquidity is not a good sign: EITHER sugar-daddy LP withdraw funds OR someone move the tick to somewhere with little liquidity
+             if (_currentLiq * twapDeivationLiq <= _meanLiq){
+                 return false;
+             }
+		
+             (, int24 _currentTick,,,,,) = IUniswapV3Pool(_pool).slot0();
+		
+             // big tick change is not a good sign: EITHER sudden violent market volatility OR someone move the tick further away
+             return _currentTick < _meanTick? (_meanTick - _currentTick) <= twapDeivationTick : (_currentTick - _meanTick) <= twapDeivationTick;
+			 
+        } catch{
+             // some pool might need to call increaseObservationCardinalityNext() on v3 pool to add the storage slot for twap observations
+             return true;
         }
     }
 	

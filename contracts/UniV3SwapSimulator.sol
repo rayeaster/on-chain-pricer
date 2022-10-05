@@ -27,6 +27,7 @@ interface IUniswapV3PoolSwapTick {
     function liquidity() external view returns (uint128);
     function tickSpacing() external view returns (int24);
     function ticks(int24 tick) external view returns (uint128 liquidityGross, int128 liquidityNet, uint256 feeGrowthOutside0X128, uint256 feeGrowthOutside1X128, int56 tickCumulativeOutside, uint160 secondsPerLiquidityOutsideX128, uint32 secondsOutside, bool initialized);
+    function observe(uint32[] calldata secondsAgos) external view returns (int56[] memory tickCumulatives, uint160[] memory secondsPerLiquidityCumulativeX128s);
 }
 
 // simplified version of https://github.com/Uniswap/v3-core/blob/main/contracts/UniswapV3Pool.sol#L561
@@ -44,6 +45,28 @@ contract UniV3SwapSimulator {
     using LowGasSafeMath for int256;
     using SafeCast for uint256;
     using SafeCast for int256;
+	
+    /// @notice Calculates time-weighted means (from (block.timestamp - secondsAgo) to block.timestamp) of tick and liquidity for a given Uniswap V3 pool
+    /// @param _pool Address of the pool that we want to observe
+    /// @param _secondsAgo Number of seconds in the past from which to calculate the time-weighted means
+    /// @return The arithmetic mean tick and the harmonic mean liquidity
+    function consultPoolTwap(address _pool, uint32 _secondsAgo) external view returns (int24, uint128) {
+        require(_secondsAgo != 0, 'BP');
+
+        uint32[] memory secondsAgos = new uint32[](2);
+        secondsAgos[0] = _secondsAgo;
+        secondsAgos[1] = 0;
+
+        (int56[] memory tickCumulatives, uint160[] memory secondsPerLiquidityCumulativeX128s) = IUniswapV3PoolSwapTick(_pool).observe(secondsAgos);
+
+        int56 tickCumulativesDelta = tickCumulatives[1] - tickCumulatives[0];
+        int24 arithmeticMeanTick = int24(tickCumulativesDelta / _secondsAgo);
+        if (tickCumulativesDelta < 0 && (tickCumulativesDelta % _secondsAgo != 0)) arithmeticMeanTick--;
+
+        uint192 secondsAgoX160 = uint192(_secondsAgo) * type(uint160).max;
+        uint128 harmonicMeanLiquidity = uint128(secondsAgoX160 / (uint192(secondsPerLiquidityCumulativeX128s[1] - secondsPerLiquidityCumulativeX128s[0]) << 32));
+        return (arithmeticMeanTick, harmonicMeanLiquidity);
+    }
     
     /// @dev View function which aims to simplify Uniswap V3 swap logic (no oracle/fee update, etc) to 
     /// @dev estimate the expected output for given swap parameters and slippage

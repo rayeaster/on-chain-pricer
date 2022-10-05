@@ -54,7 +54,7 @@ def test_pricing_equivalency_balancer_v2(oneE18, weth, aura, pricerwrapper, pric
   pricer = pricerwrapper
   token = aura # some swap (AURA-WETH) only in Balancer V2
   ## 1e18
-  sell_count = 8000
+  sell_count = 15000
   sell_amount = sell_count * oneE18 ## 1e18
   
   tx = pricer.unsafeFindExecutableSwap(token, weth.address, sell_amount)
@@ -72,7 +72,7 @@ def test_pricing_equivalency_balancer_v2_with_weth(oneE18, wbtc, aura, pricerwra
   pricer = pricerwrapper
   token = aura # some swap (AURA-WETH-WBTC) only in Balancer V2 via WETH in between as connector
   ## 1e18
-  sell_count = 8000
+  sell_count = 15000
   sell_amount = sell_count * oneE18 ## 1e18
 
   tx = pricer.unsafeFindExecutableSwap(token, wbtc.address, sell_amount)
@@ -143,7 +143,6 @@ def test_pricing_equivalency_almost_everything(oneE18, wbtc, weth, pricerwrapper
 
 
 ### Test specific pricing functions for different underlying protocols
-
 def test_balancer_pricing_equivalency(oneE18, weth, usdc, pricer, pricer_legacy):  
   ## 1e18
   sell_amount = 1 * oneE18

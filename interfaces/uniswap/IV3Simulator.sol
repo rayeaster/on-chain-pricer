@@ -22,4 +22,5 @@ struct UniV3SortPoolQuery{
 interface IUniswapV3Simulator {
     function simulateUniV3Swap(address _pool, address _token0, address _token1, bool _zeroForOne, uint24 _fee, uint256 _amountIn) external view returns (uint256);
     function checkInRangeLiquidity(UniV3SortPoolQuery memory _sortQuery) external view returns (bool, uint256);
+    function consultPoolTwap(address _pool, uint32 _secondsAgo) external view returns (int24 arithmeticMeanTick, uint128 harmonicMeanLiquidity);
 }

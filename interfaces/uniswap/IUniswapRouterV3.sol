@@ -14,8 +14,20 @@ struct ExactInputParams {
     uint256 amountOutMinimum;
 }
 
+struct ExactInputSingleParams {
+    address tokenIn;
+    address tokenOut;
+    uint24 fee;
+    address recipient;
+    uint256 deadline;
+    uint256 amountIn;
+    uint256 amountOutMinimum;
+    uint160 sqrtPriceLimitX96;
+}
+
 // https://github.com/Uniswap/swap-router-contracts/blob/v1.1.0/contracts/interfaces/IV3SwapRouter.sol
 // https://docs.uniswap.org/protocol/reference/deployments
 interface IUniswapRouterV3 {
     function exactInput(ExactInputParams calldata params) external returns (uint256 amountOut);
+    function exactInputSingle(ExactInputSingleParams calldata params) external payable returns (uint256 amountOut);	
 }
