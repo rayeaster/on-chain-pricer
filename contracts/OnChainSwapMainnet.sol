@@ -32,7 +32,7 @@ struct Quote {
 }
 
 interface OnChainPricing {
-    function findOptimalSwap(address tokenIn, address tokenOut, uint256 amountIn) external view returns (Quote memory);
+    function findExecutableSwap(address tokenIn, address tokenOut, uint256 amountIn) external view returns (Quote memory);
 }
 
 /// @dev Mainnet Version of swap for various on-chain dex
@@ -56,10 +56,13 @@ contract OnChainSwapMainnet {
 
 		
     /// @dev execute on-chain swap based on optimal quote
+    /// @notice `pricer.findExecutableSwap` will return an executable swap protected by feed or revert
+    /// @notice if you wish to use unsafe quotes, use `doOptimalSwapWithQuote` after fetching an unsafe quote
+    ///             via `pricer.unsafeFindExecutableSwap`
     /// @return output amount after swap execution
     function doOptimalSwap(address tokenIn, address tokenOut, uint256 amountIn) external returns(uint256){
         require(pricer != address(0), "!pricer");
-        Quote memory _optimalQuote = OnChainPricing(pricer).findOptimalSwap(tokenIn, tokenOut, amountIn);
+        Quote memory _optimalQuote = OnChainPricing(pricer).findExecutableSwap(tokenIn, tokenOut, amountIn);
         return doOptimalSwapWithQuote(tokenIn, tokenOut, amountIn, _optimalQuote);
     }
 		
