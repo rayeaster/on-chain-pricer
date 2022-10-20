@@ -8,7 +8,7 @@ from brownie import (
   OnChainPricingMainnet,
   OnChainPricingMainnetLenient,
   FullOnChainPricingMainnet,
-  OnChainSwapMainnet
+  SwapExecutor
 )
 import eth_abi
 from rich.console import Console
@@ -50,7 +50,7 @@ WBTC_WHALE = "0xbf72da2bd84c5170618fbe5914b0eca9638d5eb5"
   
 @pytest.fixture
 def swapexecutor(pricer):
-  return OnChainSwapMainnet.deploy(pricer.address, {"from": accounts[0]})
+  return SwapExecutor.deploy(pricer.address, {"from": accounts[0]})
   
 @pytest.fixture
 def mainnetpricer():

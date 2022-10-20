@@ -1,4 +1,4 @@
-# Fair Selling
+# OnChainPricerV4 + SwapExecutor
 
 ## WARNING
 
@@ -125,6 +125,34 @@ quote = pricer.unsafeFindExecutableSwap(t_in, t_out, amt_in)
 
 Variation of Pricer with a slippage tollerance, mostly used to allow a multisig enough wiggle room for operation
 
+
+## SwapExecutor
+
+Executes Quotes based on the PricerV4, leveraging all possible pools (and more technically)
+
+SwapExecutor enables projects to deploy one contract, which is robust enough to offer most features for most mainnet AMMs (over 80% of TVL is in top 5 AMMs on ETH).
+
+At the same time it's flexibile enough to enable handling pools currently not covered by the pricer.
+
+This is the first step towards maintainable swaps, that don't require upgrades.
+
+Supports all protocols and pools from PricerV4
+
+It's meant to be used as a router contract, it will use the tokens you sent and send the tokens back to the caller
+
+### doOptimalSwap
+
+```solidity
+    function doOptimalSwap(address tokenIn, address tokenOut, uint256 amountIn) external returns(uint256){
+```
+Retrieves a Chainlink Price Feed Protected Quote from PricerV4 and executes it
+
+### doOptimalSwapWithQuote
+```solidity
+    function doOptimalSwapWithQuote(address tokenIn, address tokenOut, uint256 amountIn, Quote memory optimalQuote) public returns(uint256){		
+```
+
+Uses any Quote (even unprotected ones) and executes it
 
 
 # Notable Tests
