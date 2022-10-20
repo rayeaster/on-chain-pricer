@@ -254,6 +254,8 @@ contract OnChainPricingMainnet {
 
     /// @dev External function to provide swap quote which prioritize price feed over on-chain dex source, 
     /// @dev this is virtual so you can override, see Lenient Version
+    /// @notice This function is meant to never revert, it will return 0 when it captures a revert
+    ///     Understand that a 0 means the execution will either fail or get rekt
     /// @param tokenIn - The token you want to sell
     /// @param tokenOut - The token you want to buy
     /// @param amountIn - The amount of token you want to sell
@@ -273,12 +275,13 @@ contract OnChainPricingMainnet {
     /// @dev this is virtual so you can override, see Lenient Version
     /// @dev This function will use Price Feeds to confirm the quote from on-chain dex source is within acceptable slippage-range
     /// @dev a valid quote from on-chain dex source will return or just revert if it is NOT "good enough" compared to oracle feed
+    /// @notice If Feed returns 0, this function is unsafe and will not revert
+    ///         It's up to the caller to verify the output is non-zero to avoid getting rekt
     function findExecutableSwap(address tokenIn, address tokenOut, uint256 amountIn) public view virtual returns (Quote memory q) {
         FeedQuote memory _qFeed = _feedWithPossibleETHConnector(tokenIn, tokenOut, amountIn);	
 		
         FindSwapQuery memory _query = FindSwapQuery(tokenIn, tokenOut, amountIn, WETH, (_qFeed.tokenInToETHType == SwapType.UNIV3? _qFeed.tokenInToETH : 0), (_qFeed.tokenInToETHType == SwapType.BALANCER? _qFeed.tokenInToETH : 0));	
         q = _findOptimalSwap(_query);		
-        
         require(q.amountOut >= (_qFeed.finalQuote * (MAX_BPS - feed_tolerance) / MAX_BPS), '!feedSlip');
     }	
 

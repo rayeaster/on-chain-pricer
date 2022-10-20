@@ -63,6 +63,9 @@ contract SwapExecutor {
     function doOptimalSwap(address tokenIn, address tokenOut, uint256 amountIn) external returns(uint256){
         require(pricer != address(0), "!pricer");
         Quote memory _optimalQuote = OnChainPricing(pricer).findExecutableSwap(tokenIn, tokenOut, amountIn);
+        
+        // A 0 out means execution may revert or is off, we'll just revert
+        require(_optimalQuote.amountOut > 0, "0 out");
         return doOptimalSwapWithQuote(tokenIn, tokenOut, amountIn, _optimalQuote);
     }
 		
