@@ -275,10 +275,10 @@ contract OnChainPricingMainnet {
     /// @dev this is virtual so you can override, see Lenient Version
     /// @dev This function will use Price Feeds to confirm the quote from on-chain dex source is within acceptable slippage-range
     /// @dev a valid quote from on-chain dex source will return or just revert if it is NOT "good enough" compared to oracle feed
-    /// @notice If Feed returns 0, this function is unsafe and will not revert
-    ///         It's up to the caller to verify the output is non-zero to avoid getting rekt
+    /// @notice If Feed returns 0, this function will revert because we cannot offer a safe executable swap
     function findExecutableSwap(address tokenIn, address tokenOut, uint256 amountIn) public view virtual returns (Quote memory q) {
-        FeedQuote memory _qFeed = _feedWithPossibleETHConnector(tokenIn, tokenOut, amountIn);	
+        FeedQuote memory _qFeed = _feedWithPossibleETHConnector(tokenIn, tokenOut, amountIn);
+        require(_qFeed.finalQuote > 0, "no feed");
 		
         FindSwapQuery memory _query = FindSwapQuery(tokenIn, tokenOut, amountIn, WETH, (_qFeed.tokenInToETHType == SwapType.UNIV3? _qFeed.tokenInToETH : 0), (_qFeed.tokenInToETHType == SwapType.BALANCER? _qFeed.tokenInToETH : 0));	
         q = _findOptimalSwap(_query);		

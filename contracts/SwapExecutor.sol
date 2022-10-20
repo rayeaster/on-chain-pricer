@@ -56,6 +56,7 @@ contract SwapExecutor {
 
 		
     /// @dev execute on-chain swap based on optimal quote
+    /// @notice Reverts if Feed
     /// @notice `pricer.findExecutableSwap` will return an executable swap protected by feed or revert
     /// @notice if you wish to use unsafe quotes, use `doOptimalSwapWithQuote` after fetching an unsafe quote
     ///             via `pricer.unsafeFindExecutableSwap`
