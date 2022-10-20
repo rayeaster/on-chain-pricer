@@ -78,6 +78,7 @@ def test_get_balancer_price_analytical(oneE18, weth, usdc, pricer):
     getBalancerPriceAnalytically quote for token A swapped to token B directly using given balancer pool: A - > B analytically
 """
 def test_get_balancer_price_ohm_analytical(oneE18, ohm, dai, pricer):  
+  ## NOTE: OHM dumped so this test can fail, you may chose to remove or add a coingeko price to compare against
   ## 1e8
   sell_count = 1000
   sell_amount = sell_count * 1000000000 ## 1e9
