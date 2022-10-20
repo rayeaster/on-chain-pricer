@@ -36,7 +36,7 @@ interface OnChainPricing {
 }
 
 /// @dev Mainnet Version of swap for various on-chain dex
-contract OnChainSwapMainnet {
+contract SwapExecutor {
     using SafeERC20 for IERC20;
 
     address public constant UNIV3_ROUTER = 0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45; 
