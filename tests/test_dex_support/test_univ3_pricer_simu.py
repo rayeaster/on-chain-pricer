@@ -96,7 +96,7 @@ def test_only_curve_support(oneE18, usdc, badger, aura, pricerwrapper):
   assert quoteTx[1][1] > 0
   assert quoteTx[1][0] == 7 ## quote(usdi -> ETH) * feed(ETH->USDC)
   
-  ## not supported yet
+  ## Aura Badger is Supported
   isBadgerAuraSupported = pricer.isPairSupported(badger.address, aura.address, sell_amount * 100)
-  assert isBadgerAuraSupported == False
+  assert isBadgerAuraSupported
  

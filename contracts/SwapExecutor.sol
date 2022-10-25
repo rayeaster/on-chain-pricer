@@ -10,7 +10,7 @@ import "../interfaces/curve/ICurveRouter.sol";
 import "../interfaces/balancer/IBalancerV2Vault.sol";
 
 /**
-    NOTE: UNSAFE, UNTESTED, WIP, Use, read, look at and copy at your own risk
+    NOTE: Unadited
  */
 
 enum SwapType { 
