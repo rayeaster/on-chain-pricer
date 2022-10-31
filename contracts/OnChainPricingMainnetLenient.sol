@@ -37,6 +37,13 @@ contract OnChainPricingMainnetLenient is OnChainPricingMainnet {
         slippage = newSlippage;
     }
 
+    /// @dev WP-L2 from watchpug for V4, setting allowed slippage from oracle feed
+    function setFeedSlippage(uint256 newSlippage) external {
+        require(msg.sender == TECH_OPS, "Only TechOps");
+        require(newSlippage < MAX_BPS);
+        feed_tolerance = newSlippage;
+    }
+
     // === PRICING === //
 
     /// @dev apply lenient slippage on top of parent query 

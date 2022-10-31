@@ -4,6 +4,33 @@ from brownie import *
 import pytest
 
 """
+    test swap from token A to token B with optimal quote within specified sources
+"""
+def test_swap_with_specified_sources(oneE18, weth_whale, weth, crv, pricer, swapexecutor):
+  ## 1e18
+  sell_amount = 1 * oneE18
+  
+  ## specified dex sources
+  dexSrcs = [0] ## CURVE
+
+  ## minimum quote for ETH in CRV
+  p = 1 * 1000 * oneE18  
+  pool = '0x8e764bE4288B842791989DB5b8ec067279829809'
+  quote = pricer.unsafeFindExecutableSwapWithSpecifiedSources(weth.address, crv.address, sell_amount, dexSrcs) 
+  assert quote[0] == 0
+  assert quote[1] >= p 
+
+  ## swap within specified on chain dex
+  slippageTolerance = 0.95
+  weth.transfer(swapexecutor.address, sell_amount, {'from': weth_whale})
+  
+  minOutput = quote[1] * slippageTolerance
+  balBefore = crv.balanceOf(weth_whale)
+  swapexecutor.unsafeExecutableSwapWithSpecifiedSources(weth.address, crv.address, sell_amount, dexSrcs, {'from': weth_whale})
+  balAfter = crv.balanceOf(weth_whale)
+  assert (balAfter - balBefore) >= minOutput
+
+"""
     test swap in Curve from token A to token B directly
 """
 def test_swap_in_curve(oneE18, weth_whale, weth, crv, pricer, swapexecutor):
